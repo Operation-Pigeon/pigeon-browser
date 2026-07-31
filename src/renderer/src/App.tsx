@@ -24,22 +24,28 @@ function ResizeHandle({
   onDrag: (clientX: number) => void;
   onDone: () => void;
 }) {
+  // Pointer capture keeps the drag alive even when the cursor crosses the
+  // mail iframe (iframes otherwise swallow the moves); the wrapper gives a
+  // 12px grab zone around a 1px visual line.
   return (
     <div
-      className="w-1 shrink-0 cursor-col-resize bg-border/50 hover:bg-primary/50 active:bg-primary"
+      className="group relative z-10 -mx-1.5 w-3 shrink-0 cursor-col-resize"
+      style={{ touchAction: 'none' }}
       onPointerDown={(e) => {
         e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
         onStart();
-        const move = (ev: PointerEvent) => onDrag(ev.clientX);
-        const up = () => {
-          window.removeEventListener('pointermove', move);
-          window.removeEventListener('pointerup', up);
-          onDone();
-        };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', up);
       }}
-    />
+      onPointerMove={(e) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) onDrag(e.clientX);
+      }}
+      onPointerUp={(e) => {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+        onDone();
+      }}
+    >
+      <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border group-hover:w-0.5 group-hover:bg-primary group-active:bg-primary" />
+    </div>
   );
 }
 
