@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeftIcon, CopyIcon, RotateCwIcon } from 'lucide-react';
+import { ArrowLeftIcon, CopyIcon, MoonIcon, RotateCwIcon, SunIcon } from 'lucide-react';
 import type { MailDetail, MailSummary } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+const BASE_MAIL_STYLE = '<style>body{margin:0;padding:12px;font-size:14px}</style>';
+const DARK_MAIL_STYLE =
+  '<style>:root{color-scheme:dark}body{background:transparent;color:#e7e7e7;font-family:system-ui,sans-serif}a{color:#8ab4f8}</style>';
 
 /** Codes 4-8 digits in mail newer than this are offered for one-click copy. */
 const OTP_WINDOW_MS = 10 * 60 * 1000;
@@ -27,7 +31,28 @@ function extractOtp(m: MailSummary): string | null {
 export function MailPanel({ address }: { address: string }) {
   const [mail, setMail] = useState<MailSummary[]>([]);
   const [open, setOpen] = useState<MailDetail | null>(null);
+  const [openHtml, setOpenHtml] = useState<string | null>(null);
+  const [bodyView, setBodyView] = useState<'html' | 'text'>('html');
+  const [frameDark, setFrameDark] = useState(true); // chrome is dark; mail can flip per-message
   const [copied, setCopied] = useState<string | null>(null);
+
+  function openMail(id: string) {
+    setOpenHtml(null);
+    setBodyView('html');
+    setFrameDark(true);
+    void window.bridge.pigeon.mailDetail(id).then((d) => {
+      const detail = d as MailDetail;
+      setOpen(detail);
+      if (detail.direction === 'OUTBOUND' && detail.bodyHtml) {
+        setOpenHtml(detail.bodyHtml);
+      } else if (detail.hasHtml) {
+        void window.bridge.pigeon
+          .mailHtml(id)
+          .then((r) => setOpenHtml((r as { html: string }).html))
+          .catch(() => setOpenHtml(null));
+      }
+    });
+  }
 
   const refresh = useCallback(() => {
     window.bridge.pigeon
@@ -92,23 +117,62 @@ export function MailPanel({ address }: { address: string }) {
 
       {open ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 border-b px-3 py-2">
+          <div className="flex items-center gap-1 border-b px-2 py-2">
             <Button variant="ghost" size="icon-sm" onClick={() => setOpen(null)}>
               <ArrowLeftIcon />
             </Button>
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {open.subject || '(no subject)'}
             </span>
+            {openHtml !== null && (
+              <>
+                <Button
+                  variant={bodyView === 'html' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setBodyView('html')}
+                >
+                  HTML
+                </Button>
+                <Button
+                  variant={bodyView === 'text' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setBodyView('text')}
+                >
+                  Text
+                </Button>
+                {bodyView === 'html' && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setFrameDark(!frameDark)}
+                    title={frameDark ? 'Light background' : 'Dark background'}
+                  >
+                    {frameDark ? <SunIcon /> : <MoonIcon />}
+                  </Button>
+                )}
+              </>
+            )}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <p className="mb-2 text-xs text-muted-foreground">
-              {open.from[0] ? `${open.from[0].name || open.from[0].email}` : ''} ·{' '}
-              {new Date(open.receivedAt).toLocaleString()}
-            </p>
-            <pre className="font-sans text-sm break-words whitespace-pre-wrap select-text">
-              {open.bodyText || '(empty body)'}
-            </pre>
-          </div>
+          <p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
+            {open.from[0] ? `${open.from[0].name || open.from[0].email}` : ''} ·{' '}
+            {new Date(open.receivedAt).toLocaleString()}
+          </p>
+          {openHtml !== null && bodyView === 'html' ? (
+            // Same posture as the webapp: sandbox="" kills scripts; dark
+            // defaults only touch mail that declares no colors of its own.
+            <iframe
+              sandbox=""
+              srcDoc={BASE_MAIL_STYLE + (frameDark ? DARK_MAIL_STYLE : '') + openHtml}
+              title="Message body"
+              className={cn('min-h-0 flex-1', frameDark ? 'bg-transparent' : 'bg-white')}
+            />
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <pre className="font-sans text-sm break-words whitespace-pre-wrap select-text">
+                {open.bodyText || '(empty body)'}
+              </pre>
+            </div>
+          )}
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -116,9 +180,7 @@ export function MailPanel({ address }: { address: string }) {
             <button
               key={m.id}
               type="button"
-              onClick={() =>
-                void window.bridge.pigeon.mailDetail(m.id).then((d) => setOpen(d as MailDetail))
-              }
+              onClick={() => openMail(m.id)}
               className="flex w-full flex-col gap-0.5 border-b px-3 py-2 text-left hover:bg-accent/50"
             >
               <span className="flex w-full items-center gap-2">
