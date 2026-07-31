@@ -28,7 +28,7 @@ function extractOtp(m: MailSummary): string | null {
  * exists — the OTP arrives next to the login form that wants it. Width must
  * match PANEL_W in src/main/tabs.ts (w-96 = 384px).
  */
-export function MailPanel({ address }: { address: string }) {
+export function MailPanel({ address, width }: { address: string; width: number }) {
   const [mail, setMail] = useState<MailSummary[]>([]);
   const [open, setOpen] = useState<MailDetail | null>(null);
   const [openHtml, setOpenHtml] = useState<string | null>(null);
@@ -85,7 +85,7 @@ export function MailPanel({ address }: { address: string }) {
   }
 
   return (
-    <aside className="flex w-96 shrink-0 flex-col border-l bg-sidebar">
+    <aside style={{ width }} className="flex shrink-0 flex-col border-l bg-sidebar">
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{address}</span>
         <Button variant="ghost" size="icon-sm" onClick={refresh} title="Refresh">

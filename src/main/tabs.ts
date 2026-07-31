@@ -5,10 +5,10 @@ import type { BrowserState, TabInfo } from '../shared/types';
 import { bookmarks } from './bookmarks';
 import { passwords } from './passwords';
 
-/** Chrome geometry — must match the renderer's CSS. Rail width is dynamic (collapse). */
+/** Chrome geometry — renderer drives rail/panel widths (resizable); TOP_H stays fixed. */
 export const RAIL_EXPANDED_W = 224;
 export const TOP_H = 84;
-export const PANEL_W = 384;
+export const PANEL_DEFAULT_W = 384;
 
 interface Tab {
   view: WebContentsView;
@@ -28,6 +28,7 @@ export class TabManager {
   private activeProfile: string | null = null;
   private panelOpen = false;
   private railWidth = RAIL_EXPANDED_W;
+  private panelWidth = PANEL_DEFAULT_W;
   private attached: string | null = null;
   /** Recently closed tabs, for Ctrl+Shift+T. */
   private closedStack: Array<{ profile: string; url: string }> = [];
@@ -180,6 +181,11 @@ export class TabManager {
 
   setRailWidth(width: number): void {
     this.railWidth = width;
+    this.layout();
+  }
+
+  setPanelWidth(width: number): void {
+    this.panelWidth = width;
     this.layout();
   }
 
@@ -341,7 +347,7 @@ export class TabManager {
     tab.view.setBounds({
       x: this.railWidth,
       y: TOP_H,
-      width: Math.max(0, w - this.railWidth - (this.panelOpen ? PANEL_W : 0)),
+      width: Math.max(0, w - this.railWidth - (this.panelOpen ? this.panelWidth : 0)),
       height: Math.max(0, h - TOP_H),
     });
   }

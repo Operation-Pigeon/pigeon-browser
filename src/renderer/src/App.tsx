@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BrowserState, Inbox } from '../../shared/types';
 import { KeySetup } from './components/KeySetup';
 import { MailPanel } from './components/MailPanel';
@@ -6,15 +6,60 @@ import { Rail } from './components/Rail';
 import { SettingsOverlay } from './components/SettingsOverlay';
 import { TabStrip } from './components/TabStrip';
 
-const RAIL_EXPANDED = 224;
 const RAIL_COLLAPSED = 56;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const stored = (key: string, fallback: number, lo: number, hi: number) =>
+  clamp(Number(localStorage.getItem(key)) || fallback, lo, hi);
+
+/**
+ * Draggable divider. The page's native view eats mouse events, so the drag
+ * hides it (onStart) and the caller restores it in onDone.
+ */
+function ResizeHandle({
+  onStart,
+  onDrag,
+  onDone,
+}: {
+  onStart: () => void;
+  onDrag: (clientX: number) => void;
+  onDone: () => void;
+}) {
+  return (
+    <div
+      className="w-1 shrink-0 cursor-col-resize bg-border/50 hover:bg-primary/50 active:bg-primary"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onStart();
+        const move = (ev: PointerEvent) => onDrag(ev.clientX);
+        const up = () => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', up);
+          onDone();
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      }}
+    />
+  );
+}
 
 export default function App() {
   const [keyed, setKeyed] = useState<boolean | null>(null);
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [browser, setBrowser] = useState<BrowserState | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(() => localStorage.getItem('railCollapsed') === '1');
+  const [railWidth, setRailWidth] = useState(() => stored('railWidth', 224, 160, 400));
+  const [panelWidth, setPanelWidth] = useState(() => stored('panelWidth', 384, 280, 640));
+  const railWidthRef = useRef(railWidth);
+  const panelWidthRef = useRef(panelWidth);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Main positions the native view from these — push the remembered values once.
+  useEffect(() => {
+    void window.bridge.tabs.setRailWidth(railCollapsed ? RAIL_COLLAPSED : railWidthRef.current);
+    void window.bridge.tabs.setPanelWidth(panelWidthRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [notice, setNotice] = useState<string | null>(null);
 
   function setSettingsOpenAndContent(open: boolean) {
@@ -62,9 +107,36 @@ export default function App() {
   function toggleRail() {
     const next = !railCollapsed;
     setRailCollapsed(next);
+    localStorage.setItem('railCollapsed', next ? '1' : '0');
     // Main repositions the native browser view to the new chrome width.
-    void window.bridge.tabs.setRailWidth(next ? RAIL_COLLAPSED : RAIL_EXPANDED);
+    void window.bridge.tabs.setRailWidth(next ? RAIL_COLLAPSED : railWidthRef.current);
   }
+
+  function railDrag(clientX: number) {
+    const w = clamp(clientX, 160, 400);
+    railWidthRef.current = w;
+    setRailWidth(w);
+  }
+
+  function railDone() {
+    localStorage.setItem('railWidth', String(railWidthRef.current));
+    void window.bridge.tabs.setRailWidth(railWidthRef.current);
+    void window.bridge.tabs.setContentVisible(true);
+  }
+
+  function panelDrag(clientX: number) {
+    const w = clamp(window.innerWidth - clientX, 280, 640);
+    panelWidthRef.current = w;
+    setPanelWidth(w);
+  }
+
+  function panelDone() {
+    localStorage.setItem('panelWidth', String(panelWidthRef.current));
+    void window.bridge.tabs.setPanelWidth(panelWidthRef.current);
+    void window.bridge.tabs.setContentVisible(true);
+  }
+
+  const hideContent = () => void window.bridge.tabs.setContentVisible(false);
 
   if (keyed === null) return null;
   if (!keyed) return <KeySetup onDone={() => setKeyed(true)} />;
@@ -86,10 +158,12 @@ export default function App() {
         inboxes={inboxes}
         activeProfile={activeProfile}
         collapsed={railCollapsed}
+        width={railWidth}
         onToggleCollapsed={toggleRail}
         onSelect={(address) => void window.bridge.tabs.setProfile(address)}
         onOpenSettings={() => setSettingsOpenAndContent(true)}
       />
+      {!railCollapsed && <ResizeHandle onStart={hideContent} onDrag={railDrag} onDone={railDone} />}
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
       <div className="flex min-w-0 flex-1 flex-col">
         <TabStrip
@@ -106,7 +180,12 @@ export default function App() {
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             {activeProfile ? '' : 'Pick an inbox on the left to start browsing in its session.'}
           </div>
-          {panelOpen && activeProfile && <MailPanel address={activeProfile} />}
+          {panelOpen && activeProfile && (
+            <>
+              <ResizeHandle onStart={hideContent} onDrag={panelDrag} onDone={panelDone} />
+              <MailPanel address={activeProfile} width={panelWidth} />
+            </>
+          )}
         </div>
       </div>
     </div>

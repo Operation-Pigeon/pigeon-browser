@@ -28,6 +28,7 @@ export function Rail({
   inboxes,
   activeProfile,
   collapsed,
+  width,
   onToggleCollapsed,
   onSelect,
   onOpenSettings,
@@ -35,16 +36,15 @@ export function Rail({
   inboxes: Inbox[];
   activeProfile: string | null;
   collapsed: boolean;
+  width: number;
   onToggleCollapsed: () => void;
   onSelect: (address: string) => void;
   onOpenSettings: () => void;
 }) {
   return (
     <aside
-      className={cn(
-        'flex shrink-0 flex-col border-r bg-sidebar',
-        collapsed ? 'w-14 items-center' : 'w-56',
-      )}
+      style={collapsed ? undefined : { width }}
+      className={cn('flex shrink-0 flex-col border-r bg-sidebar', collapsed && 'w-14 items-center')}
     >
       {/* Top strip doubles as a window-drag handle. */}
       <div
