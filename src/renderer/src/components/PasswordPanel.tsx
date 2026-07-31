@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { EyeIcon, EyeOffIcon, KeyIcon, RotateCwIcon, Trash2Icon } from 'lucide-react';
+import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon, KeyIcon, RotateCwIcon, Trash2Icon } from 'lucide-react';
 import type { SavedPassword } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 export function PasswordPanel({ address, width }: { address: string; width: number }) {
   const [saved, setSaved] = useState<SavedPassword[]>([]);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     void window.bridge.passwords
@@ -34,6 +35,15 @@ export function PasswordPanel({ address, width }: { address: string; width: numb
     }
     const pw = await window.bridge.passwords.reveal(id);
     if (pw !== null) setRevealed((r) => ({ ...r, [id]: pw }));
+  }
+
+  /** Decrypts on demand — copying never requires revealing it on screen. */
+  async function copy(id: string) {
+    const pw = revealed[id] ?? (await window.bridge.passwords.reveal(id));
+    if (pw === null) return;
+    await navigator.clipboard.writeText(pw);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1500);
   }
 
   async function remove(id: string) {
@@ -77,6 +87,14 @@ export function PasswordPanel({ address, width }: { address: string; width: numb
                 title={revealed[p.id] !== undefined ? 'Hide password' : 'Reveal password'}
               >
                 {revealed[p.id] !== undefined ? <EyeOffIcon /> : <EyeIcon />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => void copy(p.id)}
+                title="Copy password"
+              >
+                {copiedId === p.id ? <CheckIcon /> : <CopyIcon />}
               </Button>
               <Button
                 variant="ghost"
