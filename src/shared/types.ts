@@ -41,6 +41,14 @@ export interface MailDetail {
   hasHtml: boolean;
 }
 
+export interface Bookmark {
+  id: string;
+  url: string;
+  title: string;
+  favicon: string | null;
+  createdAt: string;
+}
+
 export interface TabInfo {
   id: string;
   profile: string;

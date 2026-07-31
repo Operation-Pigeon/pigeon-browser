@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { BrowserState } from '../shared/types';
+import type { Bookmark, BrowserState } from '../shared/types';
 
 const api = {
   tabs: {
@@ -26,6 +26,19 @@ const api = {
       ipcRenderer.on('chrome:focusAddress', listener);
       return () => {
         ipcRenderer.removeListener('chrome:focusAddress', listener);
+      };
+    },
+  },
+  bookmarks: {
+    list: () => ipcRenderer.invoke('bookmarks:list') as Promise<Bookmark[]>,
+    toggle: (url: string, title: string, favicon: string | null) =>
+      ipcRenderer.invoke('bookmarks:toggle', url, title, favicon) as Promise<boolean>,
+    remove: (id: string) => ipcRenderer.invoke('bookmarks:remove', id),
+    onChanged: (cb: (list: Bookmark[]) => void): (() => void) => {
+      const listener = (_e: unknown, list: Bookmark[]) => cb(list);
+      ipcRenderer.on('bookmarks:changed', listener);
+      return () => {
+        ipcRenderer.removeListener('bookmarks:changed', listener);
       };
     },
   },

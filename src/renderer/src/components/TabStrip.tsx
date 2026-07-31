@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  BookmarkIcon,
   GlobeIcon,
   Loader2Icon,
   MailIcon,
   PlusIcon,
   RotateCwIcon,
+  StarIcon,
   XIcon,
 } from 'lucide-react';
-import type { TabInfo } from '../../../shared/types';
+import type { Bookmark, TabInfo } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 function normalizeUrl(input: string): string {
@@ -43,6 +46,14 @@ export function TabStrip({
   const [address, setAddress] = useState('');
   const [editing, setEditing] = useState(false);
   const addressRef = useRef<HTMLInputElement>(null);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+
+  useEffect(() => {
+    void window.bridge.bookmarks.list().then(setBookmarks);
+    return window.bridge.bookmarks.onChanged(setBookmarks);
+  }, []);
+
+  const currentBookmarked = !!active && bookmarks.some((b) => b.url === active.url);
 
   // Track the page unless the user is mid-edit.
   useEffect(() => {
@@ -162,6 +173,62 @@ export function TabStrip({
           }}
           className="h-8 flex-1 rounded-full select-text"
         />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={!active || !active.url || active.url === 'about:blank'}
+          onClick={() =>
+            active &&
+            void window.bridge.bookmarks.toggle(active.url, active.title, active.favicon)
+          }
+          title={currentBookmarked ? 'Remove bookmark (Ctrl+D)' : 'Bookmark this page (Ctrl+D)'}
+        >
+          <StarIcon className={cn(currentBookmarked && 'fill-primary text-primary')} />
+        </Button>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button variant="ghost" size="icon-sm" title="Bookmarks">
+                <BookmarkIcon />
+              </Button>
+            }
+          />
+          <PopoverContent align="end" className="w-80 p-1">
+            {bookmarks.length === 0 ? (
+              <p className="p-3 text-center text-xs text-muted-foreground">
+                No bookmarks yet — star a page or press Ctrl+D.
+              </p>
+            ) : (
+              <div className="flex max-h-96 flex-col overflow-y-auto">
+                {bookmarks.map((b) => (
+                  <div
+                    key={b.id}
+                    className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                    onClick={() => active && void window.bridge.tabs.navigate(active.id, b.url)}
+                  >
+                    {b.favicon ? (
+                      <img src={b.favicon} className="size-3.5 shrink-0" alt="" />
+                    ) : (
+                      <GlobeIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{b.title}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
+                      title="Remove bookmark"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void window.bridge.bookmarks.remove(b.id);
+                      }}
+                    >
+                      <XIcon className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
         <Button
           variant={panelOpen ? 'secondary' : 'ghost'}
           size="icon-sm"

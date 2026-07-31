@@ -1,6 +1,7 @@
 import { BrowserWindow, WebContentsView, type Input, type WebContents } from 'electron';
 import { randomUUID } from 'crypto';
 import type { BrowserState, TabInfo } from '../shared/types';
+import { bookmarks } from './bookmarks';
 
 /** Chrome geometry — must match the renderer's CSS. Rail width is dynamic (collapse). */
 export const RAIL_EXPANDED_W = 224;
@@ -204,6 +205,11 @@ export class TabManager {
         }
         if ((ctrl && key === 'r') || key === 'f5') {
           if (activeId) this.reload(activeId);
+          return true;
+        }
+        if (ctrl && key === 'd') {
+          const info = activeId ? this.tabs.get(activeId)?.info : undefined;
+          if (info) bookmarks.toggle(info.url, info.title, info.favicon);
           return true;
         }
         if (ctrl && key === 'l') {

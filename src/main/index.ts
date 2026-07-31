@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import { join } from 'path';
 import { TabManager } from './tabs';
 import { pigeon } from './pigeonApi';
+import { bookmarks } from './bookmarks';
 
 let win: BrowserWindow;
 let tabs: TabManager;
@@ -31,6 +32,7 @@ function createWindow(): void {
   win.setMenuBarVisibility(false);
 
   tabs = new TabManager(win);
+  bookmarks.init(win);
 
   if (process.env['ELECTRON_RENDERER_URL']) {
     void win.loadURL(process.env['ELECTRON_RENDERER_URL']);
@@ -52,6 +54,13 @@ app.whenReady().then(() => {
   ipcMain.handle('tabs:panel', (_e, open: boolean) => tabs.setPanelOpen(open));
   ipcMain.handle('tabs:railWidth', (_e, width: number) => tabs.setRailWidth(width));
   ipcMain.handle('tabs:snapshot', () => tabs.snapshot());
+
+  // Bookmarks — global across all inbox profiles.
+  ipcMain.handle('bookmarks:list', () => bookmarks.list());
+  ipcMain.handle('bookmarks:toggle', (_e, url: string, title: string, favicon: string | null) =>
+    bookmarks.toggle(url, title, favicon),
+  );
+  ipcMain.handle('bookmarks:remove', (_e, id: string) => bookmarks.remove(id));
 
   // Pigeon API — main-process only; the key never reaches a renderer.
   ipcMain.handle('pigeon:hasKey', () => pigeon.hasKey());
