@@ -129,7 +129,14 @@ export class TabManager {
       return { action: 'deny' };
     });
 
-    if (url) void wc.loadURL(url);
+    if (url) {
+      void wc.loadURL(url);
+    } else if (!background) {
+      // Blank tab: nothing to look at, so put the caret in the address bar
+      // (which also offers this inbox's most-visited sites).
+      this.win.webContents.focus();
+      this.win.webContents.send('chrome:focusAddress');
+    }
     this.showActive();
     this.emit();
   }
