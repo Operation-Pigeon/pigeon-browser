@@ -4,7 +4,8 @@ import type { Bookmark, BrowserState } from '../shared/types';
 const api = {
   tabs: {
     setProfile: (profile: string) => ipcRenderer.invoke('tabs:setProfile', profile),
-    create: (profile: string, url?: string) => ipcRenderer.invoke('tabs:create', profile, url),
+    create: (profile: string, url?: string, background?: boolean) =>
+      ipcRenderer.invoke('tabs:create', profile, url, background),
     close: (id: string) => ipcRenderer.invoke('tabs:close', id),
     activate: (id: string) => ipcRenderer.invoke('tabs:activate', id),
     navigate: (id: string, url: string) => ipcRenderer.invoke('tabs:navigate', id, url),

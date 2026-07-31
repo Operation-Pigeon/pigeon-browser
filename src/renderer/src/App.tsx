@@ -63,6 +63,7 @@ export default function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         <TabStrip
           profile={activeProfile}
+          allProfiles={inboxes.map((i) => i.address)}
           tabs={profileTabs?.tabs ?? []}
           activeTabId={profileTabs?.activeTabId ?? null}
           panelOpen={panelOpen}

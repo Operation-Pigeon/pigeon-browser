@@ -73,7 +73,11 @@ export class TabManager {
     };
     this.tabs.set(id, { view, info });
     this.order.set(profile, [...(this.order.get(profile) ?? []), id]);
-    if (!background) this.activeByProfile.set(profile, id);
+    // Background tabs don't steal focus — but a profile with no active tab
+    // at all (opened-in-all-inboxes into a fresh profile) still needs one.
+    if (!background || !this.activeByProfile.has(profile)) {
+      this.activeByProfile.set(profile, id);
+    }
 
     const sync = () => {
       info.url = wc.getURL();

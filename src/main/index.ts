@@ -44,7 +44,9 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // Tab commands — thin pass-throughs; TabManager owns all state.
   ipcMain.handle('tabs:setProfile', (_e, profile: string) => tabs.setProfile(profile));
-  ipcMain.handle('tabs:create', (_e, profile: string, url?: string) => tabs.create(profile, url));
+  ipcMain.handle('tabs:create', (_e, profile: string, url?: string, background?: boolean) =>
+    tabs.create(profile, url, background ?? false),
+  );
   ipcMain.handle('tabs:close', (_e, id: string) => tabs.close(id));
   ipcMain.handle('tabs:activate', (_e, id: string) => tabs.activate(id));
   ipcMain.handle('tabs:navigate', (_e, id: string, url: string) => tabs.navigate(id, url));

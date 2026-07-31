@@ -4,6 +4,7 @@ import {
   ArrowRightIcon,
   BookmarkIcon,
   GlobeIcon,
+  LayersIcon,
   Loader2Icon,
   MailIcon,
   PlusIcon,
@@ -30,12 +31,14 @@ function normalizeUrl(input: string): string {
  */
 export function TabStrip({
   profile,
+  allProfiles,
   tabs,
   activeTabId,
   panelOpen,
   onTogglePanel,
 }: {
   profile: string | null;
+  allProfiles: string[];
   tabs: TabInfo[];
   activeTabId: string | null;
   panelOpen: boolean;
@@ -61,6 +64,14 @@ export function TabStrip({
   }, []);
 
   const currentBookmarked = !!active && bookmarks.some((b) => b.url === active.url);
+
+  /** Same URL, every inbox's own session — foreground here, background elsewhere. */
+  function openInAllInboxes(url: string) {
+    for (const p of allProfiles) {
+      void window.bridge.tabs.create(p, url, p !== profile);
+    }
+    setBookmarksOpenAndContent(false);
+  }
 
   // Track the page unless the user is mid-edit.
   useEffect(() => {
@@ -229,6 +240,17 @@ export function TabStrip({
                         <GlobeIcon className="size-3.5 shrink-0 text-muted-foreground" />
                       )}
                       <span className="min-w-0 flex-1 truncate">{b.title}</span>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
+                        title="Open in every inbox"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openInAllInboxes(b.url);
+                        }}
+                      >
+                        <LayersIcon className="size-3" />
+                      </button>
                       <button
                         type="button"
                         className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
