@@ -110,12 +110,18 @@ export default function App() {
     return window.bridge.tabs.onState(setBrowser);
   }, []);
 
-  // Fresh launch lands on the first inbox instead of an empty pane.
+  // Fresh launch lands on the last-used inbox, falling back to the first.
   useEffect(() => {
     if (browser && browser.activeProfile === null && inboxes.length > 0) {
-      void window.bridge.tabs.setProfile(inboxes[0].address);
+      const last = localStorage.getItem('lastProfile');
+      const target = inboxes.find((i) => i.address === last) ?? inboxes[0];
+      void window.bridge.tabs.setProfile(target.address);
     }
   }, [browser, inboxes]);
+
+  useEffect(() => {
+    if (browser?.activeProfile) localStorage.setItem('lastProfile', browser.activeProfile);
+  }, [browser?.activeProfile]);
 
   function toggleRail() {
     const next = !railCollapsed;
