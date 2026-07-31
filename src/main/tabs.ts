@@ -1,7 +1,9 @@
 import { BrowserWindow, WebContentsView, type Input, type WebContents } from 'electron';
 import { randomUUID } from 'crypto';
+import { join } from 'path';
 import type { BrowserState, TabInfo } from '../shared/types';
 import { bookmarks } from './bookmarks';
+import { passwords } from './passwords';
 
 /** Chrome geometry — must match the renderer's CSS. Rail width is dynamic (collapse). */
 export const RAIL_EXPANDED_W = 224;
@@ -52,6 +54,7 @@ export class TabManager {
       webPreferences: {
         partition: `persist:inbox/${profile}`,
         sandbox: true,
+        preload: join(__dirname, '../preload/tab.js'), // autofill agent
       },
     });
 
@@ -97,6 +100,7 @@ export class TabManager {
       info.loading = false;
       sync();
     });
+    wc.on('did-finish-load', () => this.pushAutofill(wc, profile));
     wc.on('page-favicon-updated', (_e, favicons) => {
       info.favicon = favicons[0] ?? null;
       this.emit();
@@ -181,6 +185,30 @@ export class TabManager {
   setContentVisible(visible: boolean): void {
     if (!this.attached) return;
     this.tabs.get(this.attached)?.view.setVisible(visible);
+  }
+
+  /** The inbox profile owning a given tab webContents — for autofill IPC. */
+  profileFor(wc: WebContents): string | null {
+    for (const tab of this.tabs.values()) {
+      if (tab.view.webContents.id === wc.id) return tab.info.profile;
+    }
+    return null;
+  }
+
+  private pushAutofill(wc: WebContents, profile: string): void {
+    let origin: string;
+    try {
+      const url = new URL(wc.getURL());
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return;
+      origin = url.origin;
+    } catch {
+      return;
+    }
+    const cred = passwords.get(profile, origin);
+    wc.send('autofill:data', {
+      email: profile,
+      ...(cred ? { username: cred.username, password: cred.password } : {}),
+    });
   }
 
   /**

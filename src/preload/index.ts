@@ -30,6 +30,13 @@ const api = {
         ipcRenderer.removeListener('chrome:focusAddress', listener);
       };
     },
+    onNotice: (cb: (text: string) => void): (() => void) => {
+      const listener = (_e: unknown, text: string) => cb(text);
+      ipcRenderer.on('chrome:notice', listener);
+      return () => {
+        ipcRenderer.removeListener('chrome:notice', listener);
+      };
+    },
   },
   bookmarks: {
     list: () => ipcRenderer.invoke('bookmarks:list') as Promise<Bookmark[]>,

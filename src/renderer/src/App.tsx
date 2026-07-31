@@ -13,6 +13,20 @@ export default function App() {
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [browser, setBrowser] = useState<BrowserState | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const off = window.bridge.tabs.onNotice((text) => {
+      setNotice(text);
+      clearTimeout(timer);
+      timer = setTimeout(() => setNotice(null), 4000);
+    });
+    return () => {
+      off();
+      clearTimeout(timer);
+    };
+  }, []);
 
   const loadInboxes = useCallback(() => {
     window.bridge.pigeon
@@ -53,6 +67,13 @@ export default function App() {
 
   return (
     <div className="flex h-full">
+      {/* Transient notice pill — lives inside the top chrome strip, the only
+          region the native page view never covers. */}
+      {notice && (
+        <div className="fixed top-1.5 right-[150px] z-50 rounded-full border bg-popover px-3 py-1 text-xs text-popover-foreground shadow-md">
+          {notice}
+        </div>
+      )}
       <Rail
         inboxes={inboxes}
         activeProfile={activeProfile}
