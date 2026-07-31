@@ -122,7 +122,7 @@ export function TabStrip({
             <span className="min-w-0 flex-1 truncate">{tab.title}</span>
             <button
               type="button"
-              className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
+              className="shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground active:scale-95"
               onClick={(e) => {
                 e.stopPropagation();
                 void window.bridge.tabs.close(tab.id);
@@ -228,7 +228,7 @@ export function TabStrip({
                   {bookmarks.map((b) => (
                     <div
                       key={b.id}
-                      className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                      className="group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
                       onClick={() => {
                         if (!active) return;
                         void window.bridge.tabs.navigate(active.id, b.url);
@@ -243,7 +243,7 @@ export function TabStrip({
                       <span className="min-w-0 flex-1 truncate">{b.title}</span>
                       <button
                         type="button"
-                        className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
+                        className="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground active:scale-95"
                         title="Open in every inbox"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -254,7 +254,7 @@ export function TabStrip({
                       </button>
                       <button
                         type="button"
-                        className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
+                        className="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground active:scale-95"
                         title="Remove bookmark"
                         onClick={(e) => {
                           e.stopPropagation();
