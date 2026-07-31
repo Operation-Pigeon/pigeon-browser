@@ -14,7 +14,6 @@ import {
 import type { Bookmark, TabInfo } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 function normalizeUrl(input: string): string {
@@ -193,54 +192,61 @@ export function TabStrip({
         >
           <StarIcon className={cn(currentBookmarked && 'fill-primary text-primary')} />
         </Button>
-        <Popover open={bookmarksOpen} onOpenChange={setBookmarksOpenAndContent}>
-          <PopoverTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" title="Bookmarks">
-                <BookmarkIcon />
-              </Button>
-            }
-          />
-          <PopoverContent align="end" className="w-80 p-1">
-            {bookmarks.length === 0 ? (
-              <p className="p-3 text-center text-xs text-muted-foreground">
-                No bookmarks yet — star a page or press Ctrl+D.
-              </p>
-            ) : (
-              <div className="flex max-h-96 flex-col overflow-y-auto">
-                {bookmarks.map((b) => (
-                  <div
-                    key={b.id}
-                    className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                    onClick={() => {
-                      if (!active) return;
-                      void window.bridge.tabs.navigate(active.id, b.url);
-                      setBookmarksOpenAndContent(false);
-                    }}
-                  >
-                    {b.favicon ? (
-                      <img src={b.favicon} className="size-3.5 shrink-0" alt="" />
-                    ) : (
-                      <GlobeIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                    )}
-                    <span className="min-w-0 flex-1 truncate">{b.title}</span>
-                    <button
-                      type="button"
-                      className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
-                      title="Remove bookmark"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void window.bridge.bookmarks.remove(b.id);
+        <Button
+          variant={bookmarksOpen ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          title="Bookmarks"
+          onClick={() => setBookmarksOpenAndContent(!bookmarksOpen)}
+        >
+          <BookmarkIcon />
+        </Button>
+        {/* Hand-rolled dropdown: chrome overlays coordinate with the native
+            page view (hidden while open), so a plain fixed panel beats a
+            positioning library here. */}
+        {bookmarksOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setBookmarksOpenAndContent(false)} />
+            <div className="fixed top-[88px] right-14 z-50 w-80 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
+              {bookmarks.length === 0 ? (
+                <p className="p-3 text-center text-xs text-muted-foreground">
+                  No bookmarks yet — star a page or press Ctrl+D.
+                </p>
+              ) : (
+                <div className="flex max-h-96 flex-col overflow-y-auto">
+                  {bookmarks.map((b) => (
+                    <div
+                      key={b.id}
+                      className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                      onClick={() => {
+                        if (!active) return;
+                        void window.bridge.tabs.navigate(active.id, b.url);
+                        setBookmarksOpenAndContent(false);
                       }}
                     >
-                      <XIcon className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+                      {b.favicon ? (
+                        <img src={b.favicon} className="size-3.5 shrink-0" alt="" />
+                      ) : (
+                        <GlobeIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{b.title}</span>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-muted"
+                        title="Remove bookmark"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void window.bridge.bookmarks.remove(b.id);
+                        }}
+                      >
+                        <XIcon className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
         <Button
           variant={panelOpen ? 'secondary' : 'ghost'}
           size="icon-sm"
