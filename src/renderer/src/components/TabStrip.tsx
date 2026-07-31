@@ -99,12 +99,16 @@ export function TabStrip({
     if (!editing) setAddress(active?.url === 'about:blank' ? '' : (active?.url ?? ''));
   }, [active?.url, active?.id, editing]);
 
-  // Ctrl+L lands here from the main process.
+  // Ctrl+L and new-tab focus land here from the main process. Deferred a
+  // frame: the input is disabled until the tab state arrives, and focusing
+  // a disabled input silently does nothing.
   useEffect(
     () =>
       window.bridge.tabs.onFocusAddress(() => {
-        addressRef.current?.focus();
-        addressRef.current?.select();
+        requestAnimationFrame(() => {
+          addressRef.current?.focus();
+          addressRef.current?.select();
+        });
       }),
     [],
   );

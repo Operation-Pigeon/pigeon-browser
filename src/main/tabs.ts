@@ -129,16 +129,23 @@ export class TabManager {
       return { action: 'deny' };
     });
 
+    this.showActive();
+    this.emit();
+
     if (url) {
       void wc.loadURL(url);
     } else if (!background) {
       // Blank tab: nothing to look at, so put the caret in the address bar
-      // (which also offers this inbox's most-visited sites).
-      this.win.webContents.focus();
-      this.win.webContents.send('chrome:focusAddress');
+      // (which also offers this inbox's most-visited sites). Must come
+      // AFTER emit() — the renderer disables that input until it knows a
+      // tab exists, and focusing a disabled input does nothing.
+      this.focusAddressBar();
     }
-    this.showActive();
-    this.emit();
+  }
+
+  private focusAddressBar(): void {
+    this.win.webContents.focus();
+    this.win.webContents.send('chrome:focusAddress');
   }
 
   close(id: string): void {
@@ -285,8 +292,7 @@ export class TabManager {
         }
         if (ctrl && key === 'l') {
           // Pull focus out of the page and into the chrome's address bar.
-          this.win.webContents.focus();
-          this.win.webContents.send('chrome:focusAddress');
+          this.focusAddressBar();
           return true;
         }
         if (input.alt && key === 'arrowleft') {
@@ -352,6 +358,10 @@ export class TabManager {
         this.win.contentView.addChildView(next.view);
         this.attached = nextId;
         this.layout();
+        // Detaching the previous view leaves keyboard focus orphaned on it,
+        // which silently kills every shortcut until you click something —
+        // hand focus to the view that's actually on screen.
+        if (next.info.url) next.view.webContents.focus();
       }
     }
   }
