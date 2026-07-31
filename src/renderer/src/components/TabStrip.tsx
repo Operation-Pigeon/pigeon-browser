@@ -106,8 +106,12 @@ export function TabStrip({
     () =>
       window.bridge.tabs.onFocusAddress(() => {
         requestAnimationFrame(() => {
-          addressRef.current?.focus();
-          addressRef.current?.select();
+          // getElementById fallback: if a UI-kit component ever stops
+          // forwarding refs again, focus still works.
+          const el =
+            addressRef.current ?? (document.getElementById('address-bar') as HTMLInputElement | null);
+          el?.focus();
+          el?.select();
         });
       }),
     [],
@@ -198,6 +202,7 @@ export function TabStrip({
         </Button>
         <div className="relative flex-1">
           <Input
+            id="address-bar"
             ref={addressRef}
             value={address}
             disabled={!active}
