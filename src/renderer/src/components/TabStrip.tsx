@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -42,11 +42,22 @@ export function TabStrip({
   const active = tabs.find((t) => t.id === activeTabId);
   const [address, setAddress] = useState('');
   const [editing, setEditing] = useState(false);
+  const addressRef = useRef<HTMLInputElement>(null);
 
   // Track the page unless the user is mid-edit.
   useEffect(() => {
     if (!editing) setAddress(active?.url === 'about:blank' ? '' : (active?.url ?? ''));
   }, [active?.url, active?.id, editing]);
+
+  // Ctrl+L lands here from the main process.
+  useEffect(
+    () =>
+      window.bridge.tabs.onFocusAddress(() => {
+        addressRef.current?.focus();
+        addressRef.current?.select();
+      }),
+    [],
+  );
 
   return (
     <div className="flex h-[84px] shrink-0 flex-col border-b">
@@ -125,6 +136,7 @@ export function TabStrip({
           <RotateCwIcon />
         </Button>
         <Input
+          ref={addressRef}
           value={address}
           disabled={!active}
           placeholder={profile ? `Browsing as ${profile}` : ''}

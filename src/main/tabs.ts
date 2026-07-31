@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView } from 'electron';
+import { BrowserWindow, WebContentsView, type Input, type WebContents } from 'electron';
 import { randomUUID } from 'crypto';
 import type { BrowserState, TabInfo } from '../shared/types';
 
@@ -26,9 +26,13 @@ export class TabManager {
   private panelOpen = false;
   private railWidth = RAIL_EXPANDED_W;
   private attached: string | null = null;
+  /** Recently closed tabs, for Ctrl+Shift+T. */
+  private closedStack: Array<{ profile: string; url: string }> = [];
 
   constructor(private win: BrowserWindow) {
     win.on('resize', () => this.layout());
+    // Shortcuts must also work while focus sits in the chrome renderer.
+    this.wireKeys(win.webContents);
   }
 
   setProfile(profile: string): void {
@@ -41,7 +45,7 @@ export class TabManager {
     this.emit();
   }
 
-  create(profile: string, url?: string): void {
+  create(profile: string, url?: string, background = false): void {
     const id = randomUUID();
     const view = new WebContentsView({
       webPreferences: {
@@ -54,6 +58,7 @@ export class TabManager {
     // and logging into accounts is this browser's whole purpose.
     const wc = view.webContents;
     wc.setUserAgent(wc.getUserAgent().replace(/\sElectron\/\S+/, ''));
+    this.wireKeys(wc);
 
     const info: TabInfo = {
       id,
@@ -67,7 +72,7 @@ export class TabManager {
     };
     this.tabs.set(id, { view, info });
     this.order.set(profile, [...(this.order.get(profile) ?? []), id]);
-    this.activeByProfile.set(profile, id);
+    if (!background) this.activeByProfile.set(profile, id);
 
     const sync = () => {
       info.url = wc.getURL();
@@ -91,9 +96,10 @@ export class TabManager {
       info.favicon = favicons[0] ?? null;
       this.emit();
     });
-    // target=_blank and window.open stay inside the same inbox's cookie jar.
-    wc.setWindowOpenHandler(({ url: popupUrl }) => {
-      this.create(profile, popupUrl);
+    // target=_blank and window.open stay inside the same inbox's cookie jar;
+    // middle-clicked links open in the background like a real browser.
+    wc.setWindowOpenHandler(({ url: popupUrl, disposition }) => {
+      this.create(profile, popupUrl, disposition === 'background-tab');
       return { action: 'deny' };
     });
 
@@ -106,6 +112,10 @@ export class TabManager {
     const tab = this.tabs.get(id);
     if (!tab) return;
     const profile = tab.info.profile;
+    if (tab.info.url && tab.info.url !== 'about:blank') {
+      this.closedStack.push({ profile, url: tab.info.url });
+      if (this.closedStack.length > 25) this.closedStack.shift();
+    }
     const ids = (this.order.get(profile) ?? []).filter((t) => t !== id);
     this.order.set(profile, ids);
     if (this.activeByProfile.get(profile) === id) {
@@ -156,6 +166,95 @@ export class TabManager {
   setRailWidth(width: number): void {
     this.railWidth = width;
     this.layout();
+  }
+
+  /**
+   * Standard browser shortcuts. Attached to every tab's webContents AND the
+   * chrome renderer — keystrokes go to whichever holds focus, so both must
+   * route here.
+   */
+  private wireKeys(wc: WebContents): void {
+    wc.on('before-input-event', (event, input: Input) => {
+      if (input.type !== 'keyDown') return;
+      const ctrl = input.control || input.meta;
+      const key = input.key.toLowerCase();
+      const profile = this.activeProfile;
+      const activeId = profile ? this.activeByProfile.get(profile) : undefined;
+
+      const handled = ((): boolean => {
+        if (ctrl && !input.shift && key === 't') {
+          if (profile) this.create(profile);
+          return true;
+        }
+        if (ctrl && input.shift && key === 't') {
+          this.reopenClosed();
+          return true;
+        }
+        if (ctrl && key === 'w') {
+          if (activeId) this.close(activeId);
+          return true;
+        }
+        if (ctrl && key === 'tab') {
+          this.cycle(input.shift ? -1 : 1);
+          return true;
+        }
+        if (ctrl && /^[1-9]$/.test(input.key)) {
+          this.activateIndex(Number(input.key));
+          return true;
+        }
+        if ((ctrl && key === 'r') || key === 'f5') {
+          if (activeId) this.reload(activeId);
+          return true;
+        }
+        if (ctrl && key === 'l') {
+          // Pull focus out of the page and into the chrome's address bar.
+          this.win.webContents.focus();
+          this.win.webContents.send('chrome:focusAddress');
+          return true;
+        }
+        if (input.alt && key === 'arrowleft') {
+          if (activeId) this.back(activeId);
+          return true;
+        }
+        if (input.alt && key === 'arrowright') {
+          if (activeId) this.forward(activeId);
+          return true;
+        }
+        if (key === 'f12' || (ctrl && input.shift && key === 'i')) {
+          if (activeId) this.tabs.get(activeId)?.view.webContents.toggleDevTools();
+          return true;
+        }
+        return false;
+      })();
+
+      if (handled) event.preventDefault();
+    });
+  }
+
+  private cycle(dir: 1 | -1): void {
+    const profile = this.activeProfile;
+    if (!profile) return;
+    const ids = this.order.get(profile) ?? [];
+    if (ids.length < 2) return;
+    const current = ids.indexOf(this.activeByProfile.get(profile) ?? '');
+    const next = ids[(current + dir + ids.length) % ids.length];
+    this.activate(next);
+  }
+
+  /** Chrome convention: Ctrl+1..8 by position, Ctrl+9 = last tab. */
+  private activateIndex(n: number): void {
+    const profile = this.activeProfile;
+    if (!profile) return;
+    const ids = this.order.get(profile) ?? [];
+    const id = n === 9 ? ids[ids.length - 1] : ids[n - 1];
+    if (id) this.activate(id);
+  }
+
+  private reopenClosed(): void {
+    const entry = this.closedStack.pop();
+    if (!entry) return;
+    this.activeProfile = entry.profile; // reopening may hop profiles, like Ctrl+Shift+T across windows
+    this.create(entry.profile, entry.url);
   }
 
   private showActive(): void {

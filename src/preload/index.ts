@@ -21,6 +21,13 @@ const api = {
         ipcRenderer.removeListener('browser:state', listener);
       };
     },
+    onFocusAddress: (cb: () => void): (() => void) => {
+      const listener = () => cb();
+      ipcRenderer.on('chrome:focusAddress', listener);
+      return () => {
+        ipcRenderer.removeListener('chrome:focusAddress', listener);
+      };
+    },
   },
   pigeon: {
     hasKey: () => ipcRenderer.invoke('pigeon:hasKey') as Promise<boolean>,
