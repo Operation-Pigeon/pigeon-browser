@@ -32,6 +32,7 @@ export function Rail({
   onToggleCollapsed,
   onSelect,
   onOpenSettings,
+  footerSlot,
 }: {
   inboxes: Inbox[];
   activeProfile: string | null;
@@ -40,6 +41,8 @@ export function Rail({
   onToggleCollapsed: () => void;
   onSelect: (address: string) => void;
   onOpenSettings: () => void;
+  /** Rendered above the settings separator — the save-password prompt. */
+  footerSlot?: React.ReactNode;
 }) {
   return (
     <aside
@@ -119,6 +122,8 @@ export function Rail({
           </p>
         )}
       </div>
+
+      {footerSlot}
 
       <div className={cn('border-t p-2', collapsed && 'flex justify-center')}>
         <Button

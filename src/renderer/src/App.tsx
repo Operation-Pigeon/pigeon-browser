@@ -184,10 +184,10 @@ export default function App() {
         onToggleCollapsed={toggleRail}
         onSelect={(address) => void window.bridge.tabs.setProfile(address)}
         onOpenSettings={() => setSettingsOpenAndContent(true)}
+        footerSlot={<SavePasswordPrompt collapsed={railCollapsed} />}
       />
       {!railCollapsed && <ResizeHandle onStart={hideContent} onDrag={railDrag} onDone={railDone} />}
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
-      <SavePasswordPrompt />
       <div className="flex min-w-0 flex-1 flex-col">
         <TabStrip
           profile={activeProfile}
