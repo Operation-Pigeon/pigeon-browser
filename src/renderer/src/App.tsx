@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BrowserState, Inbox, MirrorState } from '../../shared/types';
 import { HistoryPanel } from './components/HistoryPanel';
 import { KeySetup } from './components/KeySetup';
-import { MirrorBar } from './components/MirrorBar';
+import { MirrorControls } from './components/MirrorControls';
 import { MailPanel } from './components/MailPanel';
 import { PasswordPanel } from './components/PasswordPanel';
 import { Rail } from './components/Rail';
@@ -67,6 +67,7 @@ export default function App() {
   const [rightPanel, setRightPanel] = useState<'mail' | 'passwords' | 'history' | null>(null);
   const [mirror, setMirror] = useState<MirrorState>({ leader: null, followers: [], paused: false });
   const [mirrorPicking, setMirrorPicking] = useState(false);
+  const [mirrorSelection, setMirrorSelection] = useState<string[]>([]);
   const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -206,7 +207,49 @@ export default function App() {
         onToggleCollapsed={toggleRail}
         onSelect={(address) => void window.bridge.tabs.setProfile(address)}
         onOpenSettings={() => setSettingsOpenAndContent(true)}
-        footerSlot={<SavePasswordPrompt collapsed={railCollapsed} />}
+        mirrorLeader={mirror.leader}
+        mirrorFollowers={mirrorPicking ? mirrorSelection : mirror.followers}
+        mirrorPicking={mirrorPicking}
+        onToggleFollower={(address) =>
+          setMirrorSelection((s) =>
+            s.includes(address) ? s.filter((a) => a !== address) : [...s, address],
+          )
+        }
+        footerSlot={
+          <>
+            <SavePasswordPrompt collapsed={railCollapsed} />
+            <MirrorControls
+              state={mirror}
+              picking={mirrorPicking}
+              selectionCount={mirrorSelection.length}
+              collapsed={railCollapsed}
+              canStart={!!activeProfile && mirrorSelection.length > 0}
+              onPick={() => {
+                setMirrorSelection([]);
+                setMirrorPicking(true);
+              }}
+              onCancel={() => {
+                setMirrorPicking(false);
+                setMirrorSelection([]);
+              }}
+              onStart={async () => {
+                if (!activeProfile) return;
+                await window.bridge.mirror.start(activeProfile, mirrorSelection);
+                setMirrorPicking(false);
+                setMirror(await window.bridge.mirror.state());
+              }}
+              onPause={async () => {
+                await window.bridge.mirror.setPaused(!mirror.paused);
+                setMirror(await window.bridge.mirror.state());
+              }}
+              onStop={async () => {
+                await window.bridge.mirror.stop();
+                setMirrorSelection([]);
+                setMirror(await window.bridge.mirror.state());
+              }}
+            />
+          </>
+        }
       />
       {!railCollapsed && <ResizeHandle onStart={hideContent} onDrag={railDrag} onDone={railDone} />}
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
@@ -226,16 +269,6 @@ export default function App() {
             void window.bridge.tabs.setPanelOpen(next !== null);
           }}
           onSuggestOpen={(open) => void window.bridge.tabs.setContentVisible(!open)}
-          mirrorActive={mirror.leader !== null}
-          onToggleMirror={() => setMirrorPicking((p) => !p)}
-        />
-        <MirrorBar
-          inboxes={inboxes}
-          activeProfile={activeProfile}
-          state={mirror}
-          picking={mirrorPicking}
-          setPicking={setMirrorPicking}
-          onChange={setMirror}
         />
         </div>
         <div className="flex min-h-0 flex-1">

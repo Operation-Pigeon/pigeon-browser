@@ -33,6 +33,10 @@ export function Rail({
   onSelect,
   onOpenSettings,
   footerSlot,
+  mirrorLeader,
+  mirrorFollowers,
+  mirrorPicking,
+  onToggleFollower,
 }: {
   inboxes: Inbox[];
   activeProfile: string | null;
@@ -41,8 +45,13 @@ export function Rail({
   onToggleCollapsed: () => void;
   onSelect: (address: string) => void;
   onOpenSettings: () => void;
-  /** Rendered above the settings separator — the save-password prompt. */
+  /** Rendered above the settings separator — mirror controls, save prompt. */
   footerSlot?: React.ReactNode;
+  /** Sky ring = controls the others; white ring = mirrored. */
+  mirrorLeader: string | null;
+  mirrorFollowers: string[];
+  mirrorPicking: boolean;
+  onToggleFollower: (address: string) => void;
 }) {
   return (
     <aside
@@ -71,15 +80,26 @@ export function Rail({
       <div className={cn('flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2', collapsed && 'items-center')}>
         {inboxes.map((inbox) => {
           const active = inbox.address === activeProfile;
+          // During picking the leader is whichever inbox is active; while
+          // running it's whatever main reported.
+          const isLeader = mirrorPicking ? active : inbox.address === mirrorLeader;
+          const isFollower = mirrorFollowers.includes(inbox.address);
           const button = (
             <button
               key={inbox.address}
               type="button"
-              onClick={() => onSelect(inbox.address)}
+              onClick={() => {
+                // In picking mode a click chooses who gets mirrored rather
+                // than switching inbox; the controller can't mirror itself.
+                if (mirrorPicking && !active) onToggleFollower(inbox.address);
+                else if (!mirrorPicking) onSelect(inbox.address);
+              }}
               className={cn(
                 'relative flex items-center gap-2 rounded-md text-left text-sm',
                 collapsed ? 'p-1.5' : 'w-full px-2 py-1.5',
                 active ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/50',
+                isLeader && 'ring-2 ring-sky-400',
+                isFollower && 'ring-2 ring-foreground/70',
               )}
             >
               <Avatar inbox={inbox} active={active} />
@@ -110,6 +130,7 @@ export function Rail({
               <TooltipContent side="right">
                 {inbox.displayName || inbox.address}
                 {inbox.unread > 0 ? ` — ${inbox.unread} unread` : ''}
+                {isLeader ? ' — controlling' : isFollower ? ' — mirrored' : ''}
               </TooltipContent>
             </Tooltip>
           ) : (
