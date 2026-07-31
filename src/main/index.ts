@@ -35,6 +35,15 @@ function createWindow(): void {
   tabs = new TabManager(win);
   bookmarks.init(win);
 
+  // Mail-panel links (sandboxed iframes firing window.open) become tabs in
+  // the active inbox's session instead of separate windows.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      tabs.openInActiveProfile(url);
+    }
+    return { action: 'deny' };
+  });
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     void win.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {

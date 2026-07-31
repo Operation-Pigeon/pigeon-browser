@@ -158,11 +158,18 @@ export function MailPanel({ address }: { address: string }) {
             {new Date(open.receivedAt).toLocaleString()}
           </p>
           {openHtml !== null && bodyView === 'html' ? (
-            // Same posture as the webapp: sandbox="" kills scripts; dark
-            // defaults only touch mail that declares no colors of its own.
+            // Scripts stay dead (no allow-scripts); allow-popups + base
+            // target=_blank turns every link into a window.open, which the
+            // chrome's windowOpenHandler routes into a new tab in THIS
+            // inbox's session.
             <iframe
-              sandbox=""
-              srcDoc={BASE_MAIL_STYLE + (frameDark ? DARK_MAIL_STYLE : '') + openHtml}
+              sandbox="allow-popups"
+              srcDoc={
+                '<base target="_blank">' +
+                BASE_MAIL_STYLE +
+                (frameDark ? DARK_MAIL_STYLE : '') +
+                openHtml
+              }
               title="Message body"
               className={cn('min-h-0 flex-1', frameDark ? 'bg-transparent' : 'bg-white')}
             />

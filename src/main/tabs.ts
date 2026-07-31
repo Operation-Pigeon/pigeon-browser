@@ -38,6 +38,12 @@ export class TabManager {
     this.wireKeys(win.webContents);
   }
 
+  /** Links clicked in the chrome (mail panel HTML) open in the active inbox. */
+  openInActiveProfile(url: string): void {
+    if (!this.activeProfile) return;
+    this.create(this.activeProfile, url);
+  }
+
   setProfile(profile: string): void {
     this.activeProfile = profile;
     if ((this.order.get(profile) ?? []).length === 0) {
