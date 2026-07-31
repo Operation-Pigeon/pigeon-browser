@@ -62,6 +62,33 @@ app.whenReady().then(async () => {
   check('capture user', captured && captured.username, 'me@site.com');
   check('capture pw', captured && captured.password, 'secret123');
 
+  // 4. hostile naming: password field named user_password must NOT become
+  //    the captured username (the two-page-login poisoning bug).
+  captured = null;
+  const trickyHtml =
+    '<form id="f"><input type="password" name="user_password" id="pw2">' +
+    '<button type="submit">Go</button></form>';
+  await wc.loadURL('data:text/html,' + encodeURIComponent(trickyHtml));
+  await sleep(200);
+  await wc.executeJavaScript(
+    `document.getElementById('pw2').value='sekret';` +
+      `document.getElementById('f').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); true`,
+  );
+  await sleep(400);
+  check('tricky capture user empty', captured && captured.username, '');
+  check('tricky capture pw', captured && captured.password, 'sekret');
+
+  // 5. two-page step 1: no password field, stored username fills the email slot.
+  await wc.loadURL('data:text/html,' + encodeURIComponent('<input type="email" id="email">'));
+  await sleep(200);
+  wc.send('autofill:data', { email: 'coop@mailpigeon.vip', username: 'realuser@x.com', password: 'hunter2' });
+  await sleep(400);
+  check(
+    'step-1 username fill',
+    await wc.executeJavaScript(`document.getElementById('email').value`),
+    'realuser@x.com',
+  );
+
   console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
   app.exit(failures === 0 ? 0 : 1);
 });

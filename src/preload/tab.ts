@@ -17,9 +17,20 @@ interface FillData {
 let data: FillData | null = null;
 let filled = false;
 
-const EMAIL_SELECTOR =
-  'input[type="email"], input[autocomplete="email"], input[autocomplete="username"], ' +
-  'input[name*="email" i], input[id*="email" i], input[name*="user" i], input[id*="user" i]';
+// :not([type=password]) on every branch — password fields are frequently
+// named "user_password"-ish, and matching one here once poisoned a captured
+// username with the password itself.
+const EMAIL_SELECTOR = [
+  'input[type="email"]',
+  'input[autocomplete="email"]',
+  'input[autocomplete="username"]',
+  'input[name*="email" i]',
+  'input[id*="email" i]',
+  'input[name*="user" i]',
+  'input[id*="user" i]',
+]
+  .map((s) => `${s}:not([type="password"]):not([type="hidden"])`)
+  .join(', ');
 
 function setNativeValue(input: HTMLInputElement, value: string): void {
   // React and friends ignore plain .value writes; go through the native
@@ -48,9 +59,12 @@ function tryFill(): void {
     return;
   }
 
-  // No stored credential — at least hand the page this inbox's address.
+  // No password field on this page (e.g. step 1 of a two-page login) —
+  // fill the identity field: the stored username if we have one, else this
+  // inbox's address.
   if (emailInputs.length > 0) {
-    for (const input of emailInputs) setNativeValue(input, data.email);
+    const value = data.username || data.email;
+    for (const input of emailInputs) setNativeValue(input, value);
     filled = true;
   }
 }
@@ -67,10 +81,11 @@ ipcRenderer.on('autofill:data', (_e, incoming: FillData) => {
 function capture(root: ParentNode): void {
   const pw = root.querySelector<HTMLInputElement>('input[type="password"]');
   if (!pw?.value) return;
-  const user =
-    root.querySelector<HTMLInputElement>(EMAIL_SELECTOR)?.value ??
-    root.querySelector<HTMLInputElement>('input[type="text"]')?.value ??
-    '';
+  const userInput =
+    root.querySelector<HTMLInputElement>(EMAIL_SELECTOR) ??
+    root.querySelector<HTMLInputElement>('input[type="text"]');
+  // Belt and braces: never let the password field double as the username.
+  const user = userInput && userInput !== pw && userInput.value !== pw.value ? userInput.value : '';
   ipcRenderer.send('autofill:captured', { username: user, password: pw.value });
 }
 
