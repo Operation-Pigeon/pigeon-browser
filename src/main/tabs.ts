@@ -170,6 +170,16 @@ export class TabManager {
   }
 
   /**
+   * Chrome overlays (bookmark dropdown, any popover reaching into the page
+   * area) render UNDER the native WebContentsView — it always sits above the
+   * renderer. The overlay tells us to hide the page while it's open.
+   */
+  setContentVisible(visible: boolean): void {
+    if (!this.attached) return;
+    this.tabs.get(this.attached)?.view.setVisible(visible);
+  }
+
+  /**
    * Standard browser shortcuts. Attached to every tab's webContents AND the
    * chrome renderer — keystrokes go to whichever holds focus, so both must
    * route here.
@@ -277,6 +287,7 @@ export class TabManager {
     if (nextId) {
       const next = this.tabs.get(nextId);
       if (next) {
+        next.view.setVisible(true); // in case it was hidden under an overlay
         this.win.contentView.addChildView(next.view);
         this.attached = nextId;
         this.layout();

@@ -13,6 +13,7 @@ const api = {
     reload: (id: string) => ipcRenderer.invoke('tabs:reload', id),
     setPanelOpen: (open: boolean) => ipcRenderer.invoke('tabs:panel', open),
     setRailWidth: (width: number) => ipcRenderer.invoke('tabs:railWidth', width),
+    setContentVisible: (visible: boolean) => ipcRenderer.invoke('tabs:contentVisible', visible),
     snapshot: () => ipcRenderer.invoke('tabs:snapshot') as Promise<BrowserState>,
     onState: (cb: (state: BrowserState) => void): (() => void) => {
       const listener = (_e: unknown, state: BrowserState) => cb(state);

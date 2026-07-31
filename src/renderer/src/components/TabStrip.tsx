@@ -47,6 +47,14 @@ export function TabStrip({
   const [editing, setEditing] = useState(false);
   const addressRef = useRef<HTMLInputElement>(null);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+
+  function setBookmarksOpenAndContent(open: boolean) {
+    setBookmarksOpen(open);
+    // The dropdown drops into the page region, which the native view owns —
+    // hide the page while it's open or it eats the popover.
+    void window.bridge.tabs.setContentVisible(!open);
+  }
 
   useEffect(() => {
     void window.bridge.bookmarks.list().then(setBookmarks);
@@ -185,7 +193,7 @@ export function TabStrip({
         >
           <StarIcon className={cn(currentBookmarked && 'fill-primary text-primary')} />
         </Button>
-        <Popover>
+        <Popover open={bookmarksOpen} onOpenChange={setBookmarksOpenAndContent}>
           <PopoverTrigger
             render={
               <Button variant="ghost" size="icon-sm" title="Bookmarks">
@@ -204,7 +212,11 @@ export function TabStrip({
                   <div
                     key={b.id}
                     className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                    onClick={() => active && void window.bridge.tabs.navigate(active.id, b.url)}
+                    onClick={() => {
+                      if (!active) return;
+                      void window.bridge.tabs.navigate(active.id, b.url);
+                      setBookmarksOpenAndContent(false);
+                    }}
                   >
                     {b.favicon ? (
                       <img src={b.favicon} className="size-3.5 shrink-0" alt="" />

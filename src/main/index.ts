@@ -53,6 +53,7 @@ app.whenReady().then(() => {
   ipcMain.handle('tabs:reload', (_e, id: string) => tabs.reload(id));
   ipcMain.handle('tabs:panel', (_e, open: boolean) => tabs.setPanelOpen(open));
   ipcMain.handle('tabs:railWidth', (_e, width: number) => tabs.setRailWidth(width));
+  ipcMain.handle('tabs:contentVisible', (_e, visible: boolean) => tabs.setContentVisible(visible));
   ipcMain.handle('tabs:snapshot', () => tabs.snapshot());
 
   // Bookmarks — global across all inbox profiles.
