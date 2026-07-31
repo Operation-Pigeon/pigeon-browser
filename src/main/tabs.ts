@@ -4,6 +4,7 @@ import { join } from 'path';
 import type { BrowserState, TabInfo } from '../shared/types';
 import { bookmarks } from './bookmarks';
 import { history } from './history';
+import { mirror } from './mirror';
 import { passwords } from './passwords';
 
 /** Chrome geometry — renderer drives rail/panel widths (resizable); TOP_H stays fixed. */
@@ -30,6 +31,8 @@ export class TabManager {
   private panelOpen = false;
   private railWidth = RAIL_EXPANDED_W;
   private panelWidth = PANEL_DEFAULT_W;
+  /** Top chrome grows when the mirror bar appears; the renderer measures it. */
+  private topHeight = TOP_H;
   private attached: string | null = null;
   /** Recently closed tabs, for Ctrl+Shift+T. */
   private closedStack: Array<{ profile: string; url: string }> = [];
@@ -38,6 +41,37 @@ export class TabManager {
     win.on('resize', () => this.layout());
     // Shortcuts must also work while focus sits in the chrome renderer.
     this.wireKeys(win.webContents);
+    mirror.attach({
+      activeWebContents: (profile) => this.activeWebContents(profile),
+      ensureTab: (profile) => this.ensureTab(profile),
+      navigateProfile: (profile, url) => {
+        const id = this.activeByProfile.get(profile);
+        if (id) this.navigate(id, url);
+      },
+      broadcastMirrorRoles: () => this.broadcastMirrorRoles(),
+    });
+  }
+
+  activeWebContents(profile: string): WebContents | null {
+    const id = this.activeByProfile.get(profile);
+    return id ? (this.tabs.get(id)?.view.webContents ?? null) : null;
+  }
+
+  /** A follower with no tab can't mirror anything — give it one. */
+  ensureTab(profile: string): void {
+    if (!this.activeByProfile.has(profile)) this.create(profile, undefined, true);
+  }
+
+  /** Tells every tab whether it's currently leading, following, or idle. */
+  broadcastMirrorRoles(): void {
+    for (const tab of this.tabs.values()) {
+      tab.view.webContents.send('mirror:role', mirror.roleFor(tab.info.profile));
+    }
+  }
+
+  /** Which inbox owns this tab — used when routing mirrored events. */
+  profileOfWebContents(wc: WebContents): string | null {
+    return this.profileFor(wc);
   }
 
   /** Links clicked in the chrome (mail panel HTML) open in the active inbox. */
@@ -102,6 +136,7 @@ export class TabManager {
     // again when it lands (same row, count already incremented once).
     wc.on('did-navigate', (_e, navUrl) => {
       history.record(profile, navUrl, wc.getTitle());
+      mirror.onLeaderNavigate(profile, navUrl);
       sync();
     });
     wc.on('did-navigate-in-page', sync);
@@ -117,7 +152,11 @@ export class TabManager {
       if (title && title !== finalUrl) history.retitle(profile, finalUrl, title);
       sync();
     });
-    wc.on('did-finish-load', () => this.pushAutofill(wc, profile));
+    wc.on('did-finish-load', () => {
+      this.pushAutofill(wc, profile);
+      // A fresh document starts with no role; re-arm it.
+      wc.send('mirror:role', mirror.roleFor(profile));
+    });
     wc.on('page-favicon-updated', (_e, favicons) => {
       info.favicon = favicons[0] ?? null;
       this.emit();
@@ -210,6 +249,11 @@ export class TabManager {
 
   setPanelWidth(width: number): void {
     this.panelWidth = width;
+    this.layout();
+  }
+
+  setTopHeight(height: number): void {
+    this.topHeight = Math.max(TOP_H, Math.round(height));
     this.layout();
   }
 
@@ -373,9 +417,9 @@ export class TabManager {
     const [w, h] = this.win.getContentSize();
     tab.view.setBounds({
       x: this.railWidth,
-      y: TOP_H,
+      y: this.topHeight,
       width: Math.max(0, w - this.railWidth - (this.panelOpen ? this.panelWidth : 0)),
-      height: Math.max(0, h - TOP_H),
+      height: Math.max(0, h - this.topHeight),
     });
   }
 

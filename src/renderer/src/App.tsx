@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BrowserState, Inbox } from '../../shared/types';
+import type { BrowserState, Inbox, MirrorState } from '../../shared/types';
 import { HistoryPanel } from './components/HistoryPanel';
 import { KeySetup } from './components/KeySetup';
+import { MirrorBar } from './components/MirrorBar';
 import { MailPanel } from './components/MailPanel';
 import { PasswordPanel } from './components/PasswordPanel';
 import { Rail } from './components/Rail';
@@ -64,6 +65,26 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // One right bar at a time.
   const [rightPanel, setRightPanel] = useState<'mail' | 'passwords' | 'history' | null>(null);
+  const [mirror, setMirror] = useState<MirrorState>({ leader: null, followers: [], paused: false });
+  const [mirrorPicking, setMirrorPicking] = useState(false);
+  const topRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void window.bridge.mirror.state().then(setMirror);
+    return window.bridge.mirror.onState(setMirror);
+  }, []);
+
+  // The mirror bar changes the chrome's height; main positions the native
+  // page view from whatever we measure here.
+  useEffect(() => {
+    const el = topRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      void window.bridge.tabs.setTopHeight(el.getBoundingClientRect().height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Main positions the native view from these — push the remembered values once.
   useEffect(() => {
@@ -190,6 +211,7 @@ export default function App() {
       {!railCollapsed && <ResizeHandle onStart={hideContent} onDrag={railDrag} onDone={railDone} />}
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
       <div className="flex min-w-0 flex-1 flex-col">
+        <div ref={topRef} className="shrink-0">
         <TabStrip
           profile={activeProfile}
           allProfiles={inboxes.map((i) => i.address)}
@@ -204,7 +226,18 @@ export default function App() {
             void window.bridge.tabs.setPanelOpen(next !== null);
           }}
           onSuggestOpen={(open) => void window.bridge.tabs.setContentVisible(!open)}
+          mirrorActive={mirror.leader !== null}
+          onToggleMirror={() => setMirrorPicking((p) => !p)}
         />
+        <MirrorBar
+          inboxes={inboxes}
+          activeProfile={activeProfile}
+          state={mirror}
+          picking={mirrorPicking}
+          setPicking={setMirrorPicking}
+          onChange={setMirror}
+        />
+        </div>
         <div className="flex min-h-0 flex-1">
           {/* The WebContentsView floats over this area; it's only visible
               chrome when no profile/tab exists yet. */}

@@ -41,6 +41,26 @@ export interface MailDetail {
   hasHtml: boolean;
 }
 
+/** How a mirrored action names its target across differing DOMs. */
+export interface ElementRef {
+  selector: string;
+  text?: string;
+  /** Classified by the leader so main knows what to substitute per inbox. */
+  field?: 'email' | 'password' | 'otp' | 'other';
+}
+
+export type MirrorEvent =
+  | { kind: 'click'; target: ElementRef }
+  | { kind: 'input'; target: ElementRef; value: string }
+  | { kind: 'submit'; target: ElementRef }
+  | { kind: 'key'; target: ElementRef; key: string };
+
+export interface MirrorState {
+  leader: string | null;
+  followers: string[];
+  paused: boolean;
+}
+
 export interface HistoryEntry {
   id: string;
   profile: string;

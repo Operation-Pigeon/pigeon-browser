@@ -5,6 +5,7 @@ import { pigeon } from './pigeonApi';
 import { bookmarks } from './bookmarks';
 import { passwords } from './passwords';
 import { history } from './history';
+import { mirror } from './mirror';
 import {
   getAutoSavePasswords,
   getShareHistorySuggestions,
@@ -79,6 +80,7 @@ app.whenReady().then(() => {
   ipcMain.handle('tabs:panel', (_e, open: boolean) => tabs.setPanelOpen(open));
   ipcMain.handle('tabs:railWidth', (_e, width: number) => tabs.setRailWidth(width));
   ipcMain.handle('tabs:panelWidth', (_e, width: number) => tabs.setPanelWidth(width));
+  ipcMain.handle('tabs:topHeight', (_e, height: number) => tabs.setTopHeight(height));
   ipcMain.handle('tabs:contentVisible', (_e, visible: boolean) => tabs.setContentVisible(visible));
   ipcMain.handle('tabs:snapshot', () => tabs.snapshot());
 
@@ -135,6 +137,26 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:setShareHistory', (_e, value: boolean) =>
     setShareHistorySuggestions(value),
   );
+
+  // Multi-inbox control. The leading profile is derived from the SENDER, so
+  // a page can't nominate itself as leader and drive other sessions.
+  ipcMain.on('mirror:event', (e, event) => {
+    const profile = tabs.profileOfWebContents(e.sender);
+    if (profile) mirror.onLeaderEvent(profile, event);
+  });
+  ipcMain.handle('mirror:state', () => mirror.state());
+  ipcMain.handle('mirror:start', (_e, leader: string, followers: string[]) => {
+    mirror.start(leader, followers);
+    win.webContents.send('mirror:state', mirror.state());
+  });
+  ipcMain.handle('mirror:stop', () => {
+    mirror.stop();
+    win.webContents.send('mirror:state', mirror.state());
+  });
+  ipcMain.handle('mirror:pause', (_e, paused: boolean) => {
+    mirror.setPaused(paused);
+    win.webContents.send('mirror:state', mirror.state());
+  });
 
   // History — panel is always per-inbox; only suggestions honour the
   // share setting.

@@ -3,6 +3,7 @@ import type {
   Bookmark,
   BrowserState,
   HistoryEntry,
+  MirrorState,
   PendingCredential,
   SavedPassword,
 } from '../shared/types';
@@ -21,6 +22,7 @@ const api = {
     setPanelOpen: (open: boolean) => ipcRenderer.invoke('tabs:panel', open),
     setRailWidth: (width: number) => ipcRenderer.invoke('tabs:railWidth', width),
     setPanelWidth: (width: number) => ipcRenderer.invoke('tabs:panelWidth', width),
+    setTopHeight: (height: number) => ipcRenderer.invoke('tabs:topHeight', height),
     setContentVisible: (visible: boolean) => ipcRenderer.invoke('tabs:contentVisible', visible),
     snapshot: () => ipcRenderer.invoke('tabs:snapshot') as Promise<BrowserState>,
     onState: (cb: (state: BrowserState) => void): (() => void) => {
@@ -69,6 +71,20 @@ const api = {
       ipcRenderer.on('passwords:prompt', listener);
       return () => {
         ipcRenderer.removeListener('passwords:prompt', listener);
+      };
+    },
+  },
+  mirror: {
+    state: () => ipcRenderer.invoke('mirror:state') as Promise<MirrorState>,
+    start: (leader: string, followers: string[]) =>
+      ipcRenderer.invoke('mirror:start', leader, followers),
+    stop: () => ipcRenderer.invoke('mirror:stop'),
+    setPaused: (paused: boolean) => ipcRenderer.invoke('mirror:pause', paused),
+    onState: (cb: (s: MirrorState) => void): (() => void) => {
+      const listener = (_e: unknown, s: MirrorState) => cb(s);
+      ipcRenderer.on('mirror:state', listener);
+      return () => {
+        ipcRenderer.removeListener('mirror:state', listener);
       };
     },
   },

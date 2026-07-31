@@ -117,3 +117,166 @@ window.addEventListener(
   },
   true,
 );
+
+/* ---------------------------------------------------------------------- *
+ * Multi-inbox mirroring
+ *
+ * Leader tabs describe what the user did; follower tabs resolve that
+ * description against their own DOM. Coordinates would be useless — the same
+ * site renders differently per session — so targets are described by stable
+ * attributes first, structure last.
+ * ---------------------------------------------------------------------- */
+
+type MirrorRole = 'leader' | 'follower' | 'off';
+let role: MirrorRole = 'off';
+let applying = false; // guards against re-capturing our own synthetic events
+
+ipcRenderer.on('mirror:role', (_e, next: MirrorRole) => {
+  role = next;
+});
+
+const OTP_HINT = /(otp|one[-_]?time|verification|2fa|mfa|auth[-_]?code|passcode|\bcode\b)/i;
+
+function classify(el: HTMLInputElement): 'email' | 'password' | 'otp' | 'other' {
+  if (el.type === 'password') return 'password';
+  const hint = `${el.name} ${el.id} ${el.autocomplete} ${el.getAttribute('aria-label') ?? ''}`;
+  if (el.autocomplete === 'one-time-code' || OTP_HINT.test(hint)) return 'otp';
+  if (el.matches(EMAIL_SELECTOR)) return 'email';
+  return 'other';
+}
+
+function describe(el: Element): { selector: string; text?: string } {
+  const tag = el.tagName.toLowerCase();
+  const attr = (name: string) => {
+    const v = el.getAttribute(name);
+    return v ? `${tag}[${name}="${CSS.escape(v)}"]` : null;
+  };
+  // Stable identifiers beat structure; purely numeric ids are usually
+  // framework-generated and differ between sessions.
+  const stable =
+    (el.id && !/^\d/.test(el.id) ? `#${CSS.escape(el.id)}` : null) ??
+    attr('name') ??
+    attr('data-testid') ??
+    attr('aria-label') ??
+    attr('placeholder');
+
+  let selector = stable ?? '';
+  if (!selector) {
+    const path: string[] = [];
+    let node: Element | null = el;
+    while (node && path.length < 8) {
+      const parent: Element | null = node.parentElement;
+      if (!parent) break;
+      const idx =
+        Array.from(parent.children).filter((c) => c.tagName === node!.tagName).indexOf(node) + 1;
+      path.unshift(`${node.tagName.toLowerCase()}:nth-of-type(${idx})`);
+      node = parent;
+    }
+    selector = path.join(' > ');
+  }
+
+  const text = (el.textContent ?? '').trim().slice(0, 60);
+  return { selector, text: text || undefined };
+}
+
+function resolve(ref: { selector: string; text?: string }): HTMLElement | null {
+  if (ref.selector) {
+    try {
+      const el = document.querySelector<HTMLElement>(ref.selector);
+      if (el) return el;
+    } catch {
+      /* selector didn't survive the trip — fall through to text */
+    }
+  }
+  if (ref.text) {
+    const candidates = Array.from(
+      document.querySelectorAll<HTMLElement>('button, a, [role="button"], input[type="submit"]'),
+    );
+    return (
+      candidates.find(
+        (c) => (c.textContent ?? (c as HTMLInputElement).value ?? '').trim() === ref.text,
+      ) ?? null
+    );
+  }
+  return null;
+}
+
+function emit(event: unknown): void {
+  if (role !== 'leader' || applying) return;
+  ipcRenderer.send('mirror:event', event);
+}
+
+window.addEventListener(
+  'click',
+  (e) => {
+    if (role !== 'leader' || !(e.target instanceof Element)) return;
+    const el = e.target.closest<HTMLElement>('a, button, [role="button"], input, label, select');
+    if (!el) return;
+    // Typing is mirrored by value; clicking into a field is noise.
+    if (el instanceof HTMLInputElement && !['submit', 'button', 'checkbox', 'radio'].includes(el.type)) {
+      return;
+    }
+    emit({ kind: 'click', target: describe(el) });
+  },
+  true,
+);
+
+window.addEventListener(
+  'input',
+  (e) => {
+    if (role !== 'leader' || !(e.target instanceof HTMLInputElement)) return;
+    const el = e.target;
+    emit({
+      kind: 'input',
+      target: { ...describe(el), field: classify(el) },
+      value: el.value,
+    });
+  },
+  true,
+);
+
+window.addEventListener(
+  'submit',
+  (e) => {
+    if (role !== 'leader' || !(e.target instanceof HTMLFormElement)) return;
+    emit({ kind: 'submit', target: describe(e.target) });
+  },
+  true,
+);
+
+window.addEventListener(
+  'keydown',
+  (e) => {
+    if (role !== 'leader' || e.key !== 'Enter' || !(e.target instanceof HTMLElement)) return;
+    emit({ kind: 'key', target: describe(e.target), key: 'Enter' });
+  },
+  true,
+);
+
+ipcRenderer.on('mirror:apply', (_e, event: { kind: string; target: { selector: string; text?: string }; value?: string }) => {
+  if (role !== 'follower') return;
+  const el = resolve(event.target);
+  if (!el) return;
+  applying = true;
+  try {
+    switch (event.kind) {
+      case 'click':
+        el.click();
+        break;
+      case 'input':
+        if (el instanceof HTMLInputElement && event.value !== undefined) {
+          setNativeValue(el, event.value);
+        }
+        break;
+      case 'submit':
+        if (el instanceof HTMLFormElement) el.requestSubmit();
+        break;
+      case 'key':
+        el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+        break;
+    }
+  } finally {
+    applying = false;
+  }
+});

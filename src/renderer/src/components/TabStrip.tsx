@@ -3,6 +3,7 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   BookmarkIcon,
+  CopyCheckIcon,
   GlobeIcon,
   HistoryIcon,
   KeyIcon,
@@ -39,7 +40,11 @@ export function TabStrip({
   rightPanel,
   onSelectPanel,
   onSuggestOpen,
+  mirrorActive,
+  onToggleMirror,
 }: {
+  mirrorActive: boolean;
+  onToggleMirror: () => void;
   profile: string | null;
   allProfiles: string[];
   tabs: TabInfo[];
@@ -354,6 +359,14 @@ export function TabStrip({
             </div>
           </>
         )}
+        <Button
+          variant={mirrorActive ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          onClick={onToggleMirror}
+          title="Control multiple inboxes"
+        >
+          <CopyCheckIcon />
+        </Button>
         <Button
           variant={rightPanel === 'history' ? 'secondary' : 'ghost'}
           size="icon-sm"
