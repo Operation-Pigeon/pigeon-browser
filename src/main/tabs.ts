@@ -36,6 +36,8 @@ export class TabManager {
   private attached: string | null = null;
   /** Recently closed tabs, for Ctrl+Shift+T. */
   private closedStack: Array<{ profile: string; url: string }> = [];
+  /** Follower tabs attached invisibly so they can receive mirrored input. */
+  private mirrorAttached = new Set<string>();
 
   constructor(private win: BrowserWindow) {
     win.on('resize', () => this.layout());
@@ -69,6 +71,48 @@ export class TabManager {
   broadcastMirrorRoles(): void {
     for (const tab of this.tabs.values()) {
       tab.view.webContents.send('mirror:role', mirror.roleFor(tab.info.profile));
+    }
+    this.syncMirrorViews();
+  }
+
+  /**
+   * Follower views must be attached to the window to receive input reliably —
+   * a detached WebContentsView has no layout, drops coordinate events, and
+   * can even hang on evaluation. They're attached invisibly (setVisible
+   * false), so they take mirrored input without ever being seen.
+   */
+  private syncMirrorViews(): void {
+    const wanted = new Set<string>();
+    for (const follower of mirror.state().followers) {
+      const id = this.activeByProfile.get(follower);
+      if (id && id !== this.attached) wanted.add(id);
+    }
+
+    for (const id of [...this.mirrorAttached]) {
+      if (wanted.has(id)) continue;
+      const tab = this.tabs.get(id);
+      // The active view is owned by showActive(); never yank it here.
+      if (tab && id !== this.attached) this.win.contentView.removeChildView(tab.view);
+      this.mirrorAttached.delete(id);
+    }
+
+    let attachedAny = false;
+    for (const id of wanted) {
+      if (this.mirrorAttached.has(id)) continue;
+      const tab = this.tabs.get(id);
+      if (!tab) continue;
+      tab.view.setVisible(false);
+      this.win.contentView.addChildView(tab.view);
+      tab.view.setBounds(this.contentBounds());
+      this.mirrorAttached.add(id);
+      attachedAny = true;
+    }
+
+    // Attaching a view takes keyboard focus with it, which silently kills
+    // mirroring: the leader stops firing focus events and there's nothing to
+    // replay. Hand focus back to the view the user is actually driving.
+    if (attachedAny && this.attached) {
+      this.tabs.get(this.attached)?.view.webContents.focus();
     }
   }
 
@@ -398,16 +442,24 @@ export class TabManager {
     }
     if (this.attached) {
       const prev = this.tabs.get(this.attached);
-      if (prev) this.win.contentView.removeChildView(prev.view);
+      // A view that's still a mirror follower stays attached — just hidden.
+      if (prev) {
+        if (this.mirrorAttached.has(this.attached)) prev.view.setVisible(false);
+        else this.win.contentView.removeChildView(prev.view);
+      }
       this.attached = null;
     }
+    // The incoming view may be one of the invisible followers; it's about to
+    // become the visible one, so it leaves that set.
+    if (nextId) this.mirrorAttached.delete(nextId);
     if (nextId) {
       const next = this.tabs.get(nextId);
       if (next) {
-        next.view.setVisible(true); // in case it was hidden under an overlay
-        this.win.contentView.addChildView(next.view);
+        next.view.setVisible(true); // in case it was hidden as a follower or under an overlay
+        this.win.contentView.addChildView(next.view); // re-adding raises it above the followers
         this.attached = nextId;
         this.layout();
+        this.syncMirrorViews();
         // Detaching the previous view leaves keyboard focus orphaned on it,
         // which silently kills every shortcut until you click something —
         // hand focus to the view that's actually on screen.
@@ -416,17 +468,24 @@ export class TabManager {
     }
   }
 
-  private layout(): void {
-    if (!this.attached) return;
-    const tab = this.tabs.get(this.attached);
-    if (!tab) return;
+  private contentBounds(): { x: number; y: number; width: number; height: number } {
     const [w, h] = this.win.getContentSize();
-    tab.view.setBounds({
+    return {
       x: this.railWidth,
       y: this.topHeight,
       width: Math.max(0, w - this.railWidth - (this.panelOpen ? this.panelWidth : 0)),
       height: Math.max(0, h - this.topHeight),
-    });
+    };
+  }
+
+  private layout(): void {
+    const bounds = this.contentBounds();
+    if (this.attached) this.tabs.get(this.attached)?.view.setBounds(bounds);
+    // Invisible followers share the geometry so mirrored coordinates and
+    // layout-dependent behaviour match the leader.
+    for (const id of this.mirrorAttached) {
+      if (id !== this.attached) this.tabs.get(id)?.view.setBounds(bounds);
+    }
   }
 
   snapshot(): BrowserState {

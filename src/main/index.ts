@@ -65,6 +65,16 @@ function createWindow(): void {
   }
 }
 
+// A browser shouldn't die because one page interaction threw somewhere in
+// main. Log it, tell the chrome, keep running — the default dialog kills the
+// app mid-session and loses every tab.
+process.on('uncaughtException', (err) => {
+  console.error('main uncaught:', err);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('chrome:notice', `Something went wrong: ${String(err).slice(0, 120)}`);
+  }
+});
+
 app.whenReady().then(() => {
   // Tab commands — thin pass-throughs; TabManager owns all state.
   ipcMain.handle('tabs:setProfile', (_e, profile: string) => tabs.setProfile(profile));

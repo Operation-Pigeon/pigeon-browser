@@ -137,12 +137,21 @@ ipcRenderer.on('mirror:role', (_e, next: MirrorRole) => {
 
 const OTP_HINT = /(otp|one[-_]?time|verification|2fa|mfa|auth[-_]?code|passcode|\bcode\b)/i;
 
-function classify(el: HTMLInputElement): 'email' | 'password' | 'otp' | 'other' {
+function classify(el: Element): 'email' | 'password' | 'otp' | 'other' {
+  if (!(el instanceof HTMLInputElement)) return 'other'; // textarea, contenteditable
   if (el.type === 'password') return 'password';
   const hint = `${el.name} ${el.id} ${el.autocomplete} ${el.getAttribute('aria-label') ?? ''}`;
   if (el.autocomplete === 'one-time-code' || OTP_HINT.test(hint)) return 'otp';
   if (el.matches(EMAIL_SELECTOR)) return 'email';
   return 'other';
+}
+
+function isEditable(el: Element): boolean {
+  return (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    (el instanceof HTMLElement && el.isContentEditable)
+  );
 }
 
 function describe(el: Element): { selector: string; text?: string } {
@@ -221,16 +230,74 @@ window.addEventListener(
   true,
 );
 
+/**
+ * Focus moves are mirrored so followers put their caret in the same field —
+ * which is what makes raw keystroke replay land in the right place.
+ */
+window.addEventListener(
+  'focusin',
+  (e) => {
+    if (role !== 'leader' || !(e.target instanceof Element) || !isEditable(e.target)) return;
+    emit({ kind: 'focus', target: { ...describe(e.target), field: classify(e.target) } });
+  },
+  true,
+);
+
+/**
+ * Only identity fields mirror by value — everything else arrives as real key
+ * events (see keydown below), so rich editors like ProseMirror stay
+ * consistent instead of having their state overwritten behind their back.
+ */
 window.addEventListener(
   'input',
   (e) => {
     if (role !== 'leader' || !(e.target instanceof HTMLInputElement)) return;
-    const el = e.target;
+    const field = classify(e.target);
+    if (field === 'other') return;
+    emit({ kind: 'input', target: { ...describe(e.target), field }, value: e.target.value });
+  },
+  true,
+);
+
+const SPECIAL_KEYS = new Set([
+  'Backspace',
+  'Delete',
+  'Enter',
+  'Tab',
+  'Escape',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+]);
+
+window.addEventListener(
+  'keydown',
+  (e) => {
+    if (role !== 'leader') return;
+    const printable = e.key.length === 1 && !e.ctrlKey && !e.metaKey;
+    if (!printable && !SPECIAL_KEYS.has(e.key)) return;
     emit({
-      kind: 'input',
-      target: { ...describe(el), field: classify(el) },
-      value: el.value,
+      kind: 'keystroke',
+      stroke: { key: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey, meta: e.metaKey },
     });
+  },
+  true,
+);
+
+let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+window.addEventListener(
+  'scroll',
+  () => {
+    if (role !== 'leader' || scrollTimer) return;
+    scrollTimer = setTimeout(() => {
+      scrollTimer = null;
+      emit({ kind: 'scroll', x: window.scrollX, y: window.scrollY });
+    }, 120);
   },
   true,
 );
@@ -260,6 +327,9 @@ function applyTo(el: HTMLElement, event: { kind: string; value?: string }): void
       case 'click':
         el.click();
         break;
+      case 'focus':
+        el.focus();
+        break;
       case 'input':
         if (el instanceof HTMLInputElement && event.value !== undefined) {
           setNativeValue(el, event.value);
@@ -277,6 +347,11 @@ function applyTo(el: HTMLElement, event: { kind: string; value?: string }): void
     applying = false;
   }
 }
+
+ipcRenderer.on('mirror:scroll', (_e, pos: { x: number; y: number }) => {
+  if (role !== 'follower') return;
+  window.scrollTo(pos.x, pos.y);
+});
 
 ipcRenderer.on(
   'mirror:apply',

@@ -85,7 +85,10 @@ app.whenReady().then(async () => {
   })`);
 
   check('email substituted per inbox', state.email, FOLLOWER_ADDRESS);
-  check('ordinary field mirrored', state.nick, 'shared-nickname');
+  // Ordinary fields deliberately do NOT mirror by value any more — they
+  // travel as real keystrokes so rich editors behave (see
+  // test-mirror-typing.js). Only identity fields are value-mirrored.
+  check('ordinary field not value-mirrored', state.nick, '');
   check('otp NOT mirrored', state.otp, '');
   check('click mirrored', state.clicks, '1');
 

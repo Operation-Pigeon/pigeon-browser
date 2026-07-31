@@ -49,11 +49,22 @@ export interface ElementRef {
   field?: 'email' | 'password' | 'otp' | 'other';
 }
 
+export interface KeyStroke {
+  key: string;
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+}
+
 export type MirrorEvent =
   | { kind: 'click'; target: ElementRef }
+  | { kind: 'focus'; target: ElementRef }
   | { kind: 'input'; target: ElementRef; value: string }
   | { kind: 'submit'; target: ElementRef }
-  | { kind: 'key'; target: ElementRef; key: string };
+  | { kind: 'scroll'; target?: ElementRef; x: number; y: number }
+  /** Typed characters ride as real key events so rich editors behave. */
+  | { kind: 'keystroke'; stroke: KeyStroke };
 
 /** in-sync | drifted (different page) | missed (target not found) | paused */
 export type FollowerStatus = 'synced' | 'drifted' | 'missed' | 'paused';

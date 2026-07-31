@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron';
-import type { FollowerStatus, MirrorEvent, MirrorState } from '../shared/types';
+import type { FollowerStatus, KeyStroke, MirrorEvent, MirrorState } from '../shared/types';
 import { passwords } from './passwords';
 
 /** What TabManager must provide; injected to avoid a circular import. */
@@ -8,6 +8,42 @@ export interface MirrorTabs {
   ensureTab(profile: string): void;
   navigateProfile(profile: string, url: string): void;
   broadcastMirrorRoles(): void;
+}
+
+/** Electron's key names differ from the DOM's for a handful of keys. */
+const KEY_NAMES: Record<string, string> = {
+  ArrowLeft: 'Left',
+  ArrowRight: 'Right',
+  ArrowUp: 'Up',
+  ArrowDown: 'Down',
+  Escape: 'Esc',
+};
+
+type InputModifier = 'shift' | 'control' | 'alt' | 'meta';
+
+function sendKey(wc: WebContents, stroke: KeyStroke): void {
+  if (!stroke?.key || wc.isDestroyed()) return;
+  const modifiers: InputModifier[] = [];
+  if (stroke.ctrl) modifiers.push('control');
+  if (stroke.shift) modifiers.push('shift');
+  if (stroke.alt) modifiers.push('alt');
+  if (stroke.meta) modifiers.push('meta');
+
+  // A key Electron can't map throws, and one bad keystroke must not take
+  // down the main process mid-session.
+  try {
+    const printable = stroke.key.length === 1 && !stroke.ctrl && !stroke.meta;
+    if (printable) {
+      // 'char' is what actually inserts text; keyDown alone doesn't type.
+      wc.sendInputEvent({ type: 'char', keyCode: stroke.key, modifiers });
+      return;
+    }
+    const keyCode = KEY_NAMES[stroke.key] ?? stroke.key;
+    wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+    wc.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+  } catch {
+    /* unmappable key — skip it rather than crash */
+  }
 }
 
 /** Same page for mirroring purposes: origin + path, ignoring query/hash noise. */
@@ -43,6 +79,8 @@ class MirrorController {
   private pausedFollowers = new Set<string>();
   private status = new Map<string, FollowerStatus>();
   private onChange: (() => void) | null = null;
+  /** What the leader is typing into right now — drives key suppression. */
+  private focusedField: 'email' | 'password' | 'otp' | 'other' = 'other';
 
   attach(tabs: MirrorTabs, onChange: () => void): void {
     this.tabs = tabs;
@@ -152,22 +190,48 @@ class MirrorController {
     if (this.paused || profile !== this.leader) return;
     const leaderUrl = this.tabs?.activeWebContents(profile)?.getURL() ?? '';
 
+    // Track what kind of field has the caret; keystrokes into identity or
+    // one-time-code fields must never be replayed verbatim.
+    if (event.kind === 'focus') this.focusedField = event.target.field ?? 'other';
+
+    if (event.kind === 'keystroke' && this.focusedField !== 'other') return;
+
     for (const follower of this.followers) {
       if (this.pausedFollowers.has(follower)) continue;
       const wc = this.tabs?.activeWebContents(follower);
-      if (!wc) continue;
+      if (!wc || wc.isDestroyed()) continue;
 
-      // The guard that matters: a follower parked on a different page (extra
-      // consent screen, redirect, captcha) must not receive clicks meant for
-      // the leader's page — a matching selector there could be anything.
-      if (!samePage(wc.getURL(), leaderUrl)) {
-        this.status.set(follower, 'drifted');
+      // A follower that closed, crashed, or navigated mid-dispatch must not
+      // bring down the session for everyone else.
+      try {
+        // The guard that matters: a follower parked on a different page
+        // (extra consent screen, redirect, captcha) must not receive input
+        // meant for the leader's page — a matching selector there could be
+        // anything.
+        if (!samePage(wc.getURL(), leaderUrl)) {
+          this.status.set(follower, 'drifted');
+          this.changed();
+          continue;
+        }
+
+        if (event.kind === 'keystroke') {
+          // Real key events, so ProseMirror-style editors and framework
+          // inputs see genuine typing rather than a value written behind
+          // their back.
+          sendKey(wc, event.stroke);
+          continue;
+        }
+        if (event.kind === 'scroll') {
+          wc.send('mirror:scroll', { x: event.x, y: event.y });
+          continue;
+        }
+
+        const outgoing = this.substitute(event, follower, wc);
+        if (outgoing) wc.send('mirror:apply', outgoing);
+      } catch {
+        this.status.set(follower, 'missed');
         this.changed();
-        continue;
       }
-
-      const outgoing = this.substitute(event, follower, wc);
-      if (outgoing) wc.send('mirror:apply', outgoing);
     }
   }
 
