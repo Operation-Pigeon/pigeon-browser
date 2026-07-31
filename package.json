@@ -1,6 +1,6 @@
 {
   "name": "pigeon-browser",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
@@ -42,6 +42,7 @@
     "@fontsource-variable/geist": "^5.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^1.28.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

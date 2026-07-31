@@ -4,6 +4,7 @@ import { TabManager } from './tabs';
 import { pigeon } from './pigeonApi';
 import { bookmarks } from './bookmarks';
 import { passwords } from './passwords';
+import { startUpdater } from './updater';
 
 let win: BrowserWindow;
 let tabs: TabManager;
@@ -34,6 +35,7 @@ function createWindow(): void {
 
   tabs = new TabManager(win);
   bookmarks.init(win);
+  startUpdater(win);
 
   // Mail-panel links (sandboxed iframes firing window.open) become tabs in
   // the active inbox's session instead of separate windows.
