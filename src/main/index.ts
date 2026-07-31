@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage } from 'electron';
 import { join } from 'path';
 import { TabManager } from './tabs';
 import { pigeon } from './pigeonApi';
@@ -21,6 +21,9 @@ function createWindow(): void {
       symbolColor: '#d4d4d4',
       height: 40,
     },
+    // Dev-mode taskbar icon; packaged builds get it baked into the exe by
+    // electron-builder from the same file.
+    icon: nativeImage.createFromPath(join(app.getAppPath(), 'build/icon.png')),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
     },
