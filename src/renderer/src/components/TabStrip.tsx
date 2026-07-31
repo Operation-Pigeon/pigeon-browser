@@ -4,6 +4,7 @@ import {
   ArrowRightIcon,
   BookmarkIcon,
   GlobeIcon,
+  HistoryIcon,
   KeyIcon,
   LayersIcon,
   Loader2Icon,
@@ -13,7 +14,7 @@ import {
   StarIcon,
   XIcon,
 } from 'lucide-react';
-import type { Bookmark, TabInfo } from '../../../shared/types';
+import type { Bookmark, HistoryEntry, TabInfo } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -37,13 +38,16 @@ export function TabStrip({
   activeTabId,
   rightPanel,
   onSelectPanel,
+  onSuggestOpen,
 }: {
   profile: string | null;
   allProfiles: string[];
   tabs: TabInfo[];
   activeTabId: string | null;
-  rightPanel: 'mail' | 'passwords' | null;
-  onSelectPanel: (panel: 'mail' | 'passwords') => void;
+  rightPanel: 'mail' | 'passwords' | 'history' | null;
+  onSelectPanel: (panel: 'mail' | 'passwords' | 'history') => void;
+  /** Suggestions drop over the page area — the native view must hide. */
+  onSuggestOpen: (open: boolean) => void;
 }) {
   const active = tabs.find((t) => t.id === activeTabId);
   const [address, setAddress] = useState('');
@@ -51,6 +55,22 @@ export function TabStrip({
   const addressRef = useRef<HTMLInputElement>(null);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<HistoryEntry[]>([]);
+  const [highlight, setHighlight] = useState(0);
+
+  function closeSuggestions() {
+    setSuggestions([]);
+    setHighlight(0);
+    onSuggestOpen(false);
+  }
+
+  function go(url: string) {
+    if (!active) return;
+    void window.bridge.tabs.navigate(active.id, url);
+    closeSuggestions();
+    setEditing(false);
+    addressRef.current?.blur();
+  }
 
   function setBookmarksOpenAndContent(open: boolean) {
     setBookmarksOpen(open);
@@ -172,26 +192,81 @@ export function TabStrip({
         >
           <RotateCwIcon />
         </Button>
-        <Input
-          ref={addressRef}
-          value={address}
-          disabled={!active}
-          placeholder={profile ? `Browsing as ${profile}` : ''}
-          onChange={(e) => setAddress(e.target.value)}
-          onFocus={(e) => {
-            setEditing(true);
-            e.currentTarget.select();
-          }}
-          onBlur={() => setEditing(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && active && address.trim()) {
-              void window.bridge.tabs.navigate(active.id, normalizeUrl(address));
+        <div className="relative flex-1">
+          <Input
+            ref={addressRef}
+            value={address}
+            disabled={!active}
+            placeholder={profile ? `Browsing as ${profile}` : ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              setAddress(value);
+              if (!profile) return;
+              void window.bridge.history.suggest(profile, value).then((list) => {
+                setSuggestions(list);
+                setHighlight(0);
+                onSuggestOpen(list.length > 0);
+              });
+            }}
+            onFocus={(e) => {
+              setEditing(true);
+              e.currentTarget.select();
+              // Empty query = most-visited sites for this inbox.
+              if (profile) {
+                void window.bridge.history.suggest(profile, '').then((list) => {
+                  setSuggestions(list);
+                  onSuggestOpen(list.length > 0);
+                });
+              }
+            }}
+            onBlur={() => {
               setEditing(false);
-              e.currentTarget.blur();
-            }
-          }}
-          className="h-8 flex-1 rounded-full select-text"
-        />
+              // Let a click on a suggestion land before tearing the list down.
+              setTimeout(closeSuggestions, 150);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown' && suggestions.length) {
+                e.preventDefault();
+                setHighlight((h) => (h + 1) % suggestions.length);
+              } else if (e.key === 'ArrowUp' && suggestions.length) {
+                e.preventDefault();
+                setHighlight((h) => (h - 1 + suggestions.length) % suggestions.length);
+              } else if (e.key === 'Escape') {
+                closeSuggestions();
+              } else if (e.key === 'Enter' && active && address.trim()) {
+                // Highlighted suggestion wins; otherwise treat what was typed
+                // as a URL or a search.
+                const picked = suggestions[highlight];
+                go(picked && highlight > 0 ? picked.url : normalizeUrl(address));
+              }
+            }}
+            className="h-8 w-full rounded-full select-text"
+          />
+          {suggestions.length > 0 && (
+            <div className="absolute top-9 left-0 z-50 w-full overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-md">
+              {suggestions.map((s, i) => (
+                <div
+                  key={s.id}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm',
+                    i === highlight ? 'bg-accent' : 'hover:bg-accent/50',
+                  )}
+                  onMouseEnter={() => setHighlight(i)}
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // keep focus so onBlur doesn't race us
+                    go(s.url);
+                  }}
+                >
+                  <GlobeIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{s.title}</span>
+                  <span className="min-w-0 max-w-48 shrink-0 truncate text-xs text-muted-foreground">
+                    {s.url.replace(/^https?:\/\//, '')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -270,6 +345,14 @@ export function TabStrip({
             </div>
           </>
         )}
+        <Button
+          variant={rightPanel === 'history' ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          onClick={() => onSelectPanel('history')}
+          title="History for this inbox"
+        >
+          <HistoryIcon />
+        </Button>
         <Button
           variant={rightPanel === 'passwords' ? 'secondary' : 'ghost'}
           size="icon-sm"

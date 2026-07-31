@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Bookmark, BrowserState, PendingCredential, SavedPassword } from '../shared/types';
+import type {
+  Bookmark,
+  BrowserState,
+  HistoryEntry,
+  PendingCredential,
+  SavedPassword,
+} from '../shared/types';
 
 const api = {
   tabs: {
@@ -66,9 +72,21 @@ const api = {
       };
     },
   },
+  history: {
+    list: (profile: string) => ipcRenderer.invoke('history:list', profile) as Promise<HistoryEntry[]>,
+    suggest: (profile: string, query: string) =>
+      ipcRenderer.invoke('history:suggest', profile, query) as Promise<HistoryEntry[]>,
+    remove: (id: string) => ipcRenderer.invoke('history:remove', id),
+    clear: (profile: string) => ipcRenderer.invoke('history:clear', profile),
+  },
   settings: {
-    get: () => ipcRenderer.invoke('settings:get') as Promise<{ autoSavePasswords: boolean }>,
+    get: () =>
+      ipcRenderer.invoke('settings:get') as Promise<{
+        autoSavePasswords: boolean;
+        shareHistorySuggestions: boolean;
+      }>,
     setAutoSave: (value: boolean) => ipcRenderer.invoke('settings:setAutoSave', value),
+    setShareHistory: (value: boolean) => ipcRenderer.invoke('settings:setShareHistory', value),
   },
   pigeon: {
     hasKey: () => ipcRenderer.invoke('pigeon:hasKey') as Promise<boolean>,

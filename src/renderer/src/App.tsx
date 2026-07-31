@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BrowserState, Inbox } from '../../shared/types';
+import { HistoryPanel } from './components/HistoryPanel';
 import { KeySetup } from './components/KeySetup';
 import { MailPanel } from './components/MailPanel';
 import { PasswordPanel } from './components/PasswordPanel';
@@ -62,7 +63,7 @@ export default function App() {
   const panelWidthRef = useRef(panelWidth);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // One right bar at a time.
-  const [rightPanel, setRightPanel] = useState<'mail' | 'passwords' | null>(null);
+  const [rightPanel, setRightPanel] = useState<'mail' | 'passwords' | 'history' | null>(null);
 
   // Main positions the native view from these — push the remembered values once.
   useEffect(() => {
@@ -202,6 +203,7 @@ export default function App() {
             setRightPanel(next);
             void window.bridge.tabs.setPanelOpen(next !== null);
           }}
+          onSuggestOpen={(open) => void window.bridge.tabs.setContentVisible(!open)}
         />
         <div className="flex min-h-0 flex-1">
           {/* The WebContentsView floats over this area; it's only visible
@@ -212,10 +214,20 @@ export default function App() {
           {rightPanel && activeProfile && (
             <>
               <ResizeHandle onStart={hideContent} onDrag={panelDrag} onDone={panelDone} />
-              {rightPanel === 'mail' ? (
-                <MailPanel address={activeProfile} width={panelWidth} />
-              ) : (
+              {rightPanel === 'mail' && <MailPanel address={activeProfile} width={panelWidth} />}
+              {rightPanel === 'passwords' && (
                 <PasswordPanel address={activeProfile} width={panelWidth} />
+              )}
+              {rightPanel === 'history' && (
+                <HistoryPanel
+                  address={activeProfile}
+                  width={panelWidth}
+                  onOpen={(url) => {
+                    const tabId = profileTabs?.activeTabId;
+                    if (tabId) void window.bridge.tabs.navigate(tabId, url);
+                    else void window.bridge.tabs.create(activeProfile, url);
+                  }}
+                />
               )}
             </>
           )}

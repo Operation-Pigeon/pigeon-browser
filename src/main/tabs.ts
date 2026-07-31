@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { join } from 'path';
 import type { BrowserState, TabInfo } from '../shared/types';
 import { bookmarks } from './bookmarks';
+import { history } from './history';
 import { passwords } from './passwords';
 
 /** Chrome geometry — renderer drives rail/panel widths (resizable); TOP_H stays fixed. */
@@ -97,7 +98,12 @@ export class TabManager {
       this.emit();
     };
     wc.on('page-title-updated', sync);
-    wc.on('did-navigate', sync);
+    // Count the visit on commit; the title usually arrives later, so record
+    // again when it lands (same row, count already incremented once).
+    wc.on('did-navigate', (_e, navUrl) => {
+      history.record(profile, navUrl, wc.getTitle());
+      sync();
+    });
     wc.on('did-navigate-in-page', sync);
     wc.on('did-start-loading', () => {
       info.loading = true;
@@ -105,6 +111,10 @@ export class TabManager {
     });
     wc.on('did-stop-loading', () => {
       info.loading = false;
+      // Backfill the real title onto the row recorded at navigation time.
+      const finalUrl = wc.getURL();
+      const title = wc.getTitle();
+      if (title && title !== finalUrl) history.retitle(profile, finalUrl, title);
       sync();
     });
     wc.on('did-finish-load', () => this.pushAutofill(wc, profile));

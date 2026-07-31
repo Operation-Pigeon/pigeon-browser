@@ -41,6 +41,15 @@ export interface MailDetail {
   hasHtml: boolean;
 }
 
+export interface HistoryEntry {
+  id: string;
+  profile: string;
+  url: string;
+  title: string;
+  visitCount: number;
+  lastVisit: string;
+}
+
 /** A capture awaiting the user's yes/no when auto-save is off. */
 export interface PendingCredential {
   profile: string;

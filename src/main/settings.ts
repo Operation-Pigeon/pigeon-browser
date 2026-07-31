@@ -9,6 +9,7 @@ import { join } from 'path';
 interface SettingsFile {
   key?: string;
   autoSavePasswords?: boolean;
+  shareHistorySuggestions?: boolean;
 }
 
 const file = () => join(app.getPath('userData'), 'pigeon-settings.json');
@@ -51,5 +52,15 @@ export function getAutoSavePasswords(): boolean {
 
 export function setAutoSavePasswords(value: boolean): void {
   load().autoSavePasswords = value;
+  persist();
+}
+
+/** Off by default: history is exactly what separate inboxes exist to separate. */
+export function getShareHistorySuggestions(): boolean {
+  return load().shareHistorySuggestions ?? false;
+}
+
+export function setShareHistorySuggestions(value: boolean): void {
+  load().shareHistorySuggestions = value;
   persist();
 }

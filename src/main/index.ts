@@ -4,7 +4,13 @@ import { TabManager } from './tabs';
 import { pigeon } from './pigeonApi';
 import { bookmarks } from './bookmarks';
 import { passwords } from './passwords';
-import { getAutoSavePasswords, setAutoSavePasswords } from './settings';
+import { history } from './history';
+import {
+  getAutoSavePasswords,
+  getShareHistorySuggestions,
+  setAutoSavePasswords,
+  setShareHistorySuggestions,
+} from './settings';
 import { startUpdater } from './updater';
 
 /** Capture waiting on a save prompt (auto-save off). Cleared on answer. */
@@ -121,8 +127,23 @@ app.whenReady().then(() => {
     return passwords.upsert(pending.profile, pending.origin, pending.username, pending.password);
   });
 
-  ipcMain.handle('settings:get', () => ({ autoSavePasswords: getAutoSavePasswords() }));
+  ipcMain.handle('settings:get', () => ({
+    autoSavePasswords: getAutoSavePasswords(),
+    shareHistorySuggestions: getShareHistorySuggestions(),
+  }));
   ipcMain.handle('settings:setAutoSave', (_e, value: boolean) => setAutoSavePasswords(value));
+  ipcMain.handle('settings:setShareHistory', (_e, value: boolean) =>
+    setShareHistorySuggestions(value),
+  );
+
+  // History — panel is always per-inbox; only suggestions honour the
+  // share setting.
+  ipcMain.handle('history:list', (_e, profile: string) => history.list(profile));
+  ipcMain.handle('history:suggest', (_e, profile: string, query: string) =>
+    history.suggest(profile, query, getShareHistorySuggestions()),
+  );
+  ipcMain.handle('history:remove', (_e, entryId: string) => history.remove(entryId));
+  ipcMain.handle('history:clear', (_e, profile: string) => history.clear(profile));
 
   // Saved-password management — chrome renderer only (never tab preloads).
   ipcMain.handle('passwords:list', () => passwords.list());

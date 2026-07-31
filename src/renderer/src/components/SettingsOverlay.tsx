@@ -14,9 +14,13 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
   const [keyBusy, setKeyBusy] = useState(false);
   const [keyMsg, setKeyMsg] = useState('');
   const [autoSave, setAutoSave] = useState(false);
+  const [shareHistory, setShareHistory] = useState(false);
 
   useEffect(() => {
-    void window.bridge.settings.get().then((s) => setAutoSave(s.autoSavePasswords));
+    void window.bridge.settings.get().then((s) => {
+      setAutoSave(s.autoSavePasswords);
+      setShareHistory(s.shareHistorySuggestions);
+    });
   }, []);
 
   async function saveKey() {
@@ -86,6 +90,30 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
                 <span className="block text-xs text-muted-foreground">
                   Off: you get a prompt after each login. Saved logins live in the key panel on the
                   right, per inbox.
+                </span>
+              </span>
+            </label>
+          </section>
+
+          <Separator />
+
+          <section className="flex flex-col gap-2">
+            <h2 className="text-sm font-medium">History</h2>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={shareHistory}
+                onChange={(e) => {
+                  setShareHistory(e.target.checked);
+                  void window.bridge.settings.setShareHistory(e.target.checked);
+                }}
+                className="mt-0.5"
+              />
+              <span>
+                Share address-bar suggestions between inboxes
+                <span className="block text-xs text-muted-foreground">
+                  Off: each inbox suggests only its own history. The history panel is always
+                  per-inbox either way.
                 </span>
               </span>
             </label>
