@@ -3,6 +3,7 @@ import type { BrowserState, Inbox, MirrorState } from '../../shared/types';
 import { HistoryPanel } from './components/HistoryPanel';
 import { KeySetup } from './components/KeySetup';
 import { MirrorControls } from './components/MirrorControls';
+import { OtpPopup } from './components/OtpPopup';
 import { MailPanel } from './components/MailPanel';
 import { PasswordPanel } from './components/PasswordPanel';
 import { Rail } from './components/Rail';
@@ -133,7 +134,9 @@ export default function App() {
   useEffect(() => {
     if (!keyed) return;
     loadInboxes();
-    const t = setInterval(loadInboxes, 30_000); // unread badges stay fresh
+    // 10s: fast enough that a code shows up well inside a minute, and it's a
+    // single request no matter how many inboxes exist.
+    const t = setInterval(loadInboxes, 10_000);
     return () => clearInterval(t);
   }, [keyed, loadInboxes]);
 
@@ -261,6 +264,7 @@ export default function App() {
       />
       {!railCollapsed && <ResizeHandle onStart={hideContent} onDrag={railDrag} onDone={railDone} />}
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
+      <OtpPopup inboxes={inboxes} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div ref={topRef} className="shrink-0">
         <TabStrip

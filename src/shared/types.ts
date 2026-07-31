@@ -5,11 +5,22 @@ export interface Identity {
   name: string;
 }
 
+export interface OtpHit {
+  code: string;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  mailId: string;
+  from: Identity[];
+  subject: string;
+  receivedAt: string;
+}
+
 export interface Inbox {
   address: string;
   displayName: string;
   createdAt: string;
   unread: number;
+  /** Most recent code seen in the last 15 minutes, if any. */
+  otp: OtpHit | null;
 }
 
 export interface MailSummary {
