@@ -65,10 +65,13 @@ export class TabManager {
       },
     });
 
-    // Google (and friends) reject logins from an obviously-Electron UA —
-    // and logging into accounts is this browser's whole purpose.
+    // Google (and friends) reject logins from an obviously-Electron UA, and
+    // bot checks score against unknown tokens — strip both Electron/x and
+    // the pigeon-browser/x app token so the UA reads as plain Chrome.
     const wc = view.webContents;
-    wc.setUserAgent(wc.getUserAgent().replace(/\sElectron\/\S+/, ''));
+    wc.setUserAgent(
+      wc.getUserAgent().replace(/\sElectron\/\S+/, '').replace(/\spigeon-browser\/\S+/, ''),
+    );
     this.wireKeys(wc);
 
     const info: TabInfo = {
