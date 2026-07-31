@@ -61,8 +61,15 @@ export function TabStrip({
 
   return (
     <div className="flex h-[84px] shrink-0 flex-col border-b">
-      {/* pr reserves space for the native min/max/close overlay (Windows). */}
-      <div className="app-drag flex h-10 items-center gap-1 overflow-x-auto py-1 pr-[140px] pl-1">
+      {/* pr reserves space for the native min/max/close overlay (Windows).
+          Middle-mousedown is suppressed here: the scrollable strip otherwise
+          triggers Chromium's autoscroll before auxclick can close a tab. */}
+      <div
+        className="app-drag flex h-10 items-center gap-1 overflow-x-auto py-1 pr-[140px] pl-1"
+        onMouseDown={(e) => {
+          if (e.button === 1) e.preventDefault();
+        }}
+      >
         {tabs.map((tab) => (
           <div
             key={tab.id}
