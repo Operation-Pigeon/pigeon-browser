@@ -33,13 +33,13 @@ export function MailPanel({ address }: { address: string }) {
   const [open, setOpen] = useState<MailDetail | null>(null);
   const [openHtml, setOpenHtml] = useState<string | null>(null);
   const [bodyView, setBodyView] = useState<'html' | 'text'>('html');
-  const [frameDark, setFrameDark] = useState(true); // chrome is dark; mail can flip per-message
+  const [frameDark, setFrameDark] = useState(false); // mail is authored for light; moon flips it
   const [copied, setCopied] = useState<string | null>(null);
 
   function openMail(id: string) {
     setOpenHtml(null);
     setBodyView('html');
-    setFrameDark(true);
+    setFrameDark(false);
     void window.bridge.pigeon.mailDetail(id).then((d) => {
       const detail = d as MailDetail;
       setOpen(detail);
