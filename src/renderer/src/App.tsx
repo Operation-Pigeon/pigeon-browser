@@ -5,10 +5,14 @@ import { MailPanel } from './components/MailPanel';
 import { Rail } from './components/Rail';
 import { TabStrip } from './components/TabStrip';
 
+const RAIL_EXPANDED = 224;
+const RAIL_COLLAPSED = 56;
+
 export default function App() {
   const [keyed, setKeyed] = useState<boolean | null>(null);
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [browser, setBrowser] = useState<BrowserState | null>(null);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   const loadInboxes = useCallback(() => {
     window.bridge.pigeon
@@ -33,6 +37,13 @@ export default function App() {
     return window.bridge.tabs.onState(setBrowser);
   }, []);
 
+  function toggleRail() {
+    const next = !railCollapsed;
+    setRailCollapsed(next);
+    // Main repositions the native browser view to the new chrome width.
+    void window.bridge.tabs.setRailWidth(next ? RAIL_COLLAPSED : RAIL_EXPANDED);
+  }
+
   if (keyed === null) return null;
   if (!keyed) return <KeySetup onDone={() => setKeyed(true)} />;
 
@@ -45,6 +56,8 @@ export default function App() {
       <Rail
         inboxes={inboxes}
         activeProfile={activeProfile}
+        collapsed={railCollapsed}
+        onToggleCollapsed={toggleRail}
         onSelect={(address) => void window.bridge.tabs.setProfile(address)}
       />
       <div className="flex min-w-0 flex-1 flex-col">
@@ -58,7 +71,7 @@ export default function App() {
         <div className="flex min-h-0 flex-1">
           {/* The WebContentsView floats over this area; it's only visible
               chrome when no profile/tab exists yet. */}
-          <div className="flex flex-1 items-center justify-center text-sm text-neutral-500">
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             {activeProfile ? '' : 'Pick an inbox on the left to start browsing in its session.'}
           </div>
           {panelOpen && activeProfile && <MailPanel address={activeProfile} />}

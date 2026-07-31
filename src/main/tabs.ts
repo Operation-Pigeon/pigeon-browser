@@ -2,8 +2,8 @@ import { BrowserWindow, WebContentsView } from 'electron';
 import { randomUUID } from 'crypto';
 import type { BrowserState, TabInfo } from '../shared/types';
 
-/** Chrome geometry — must match the renderer's CSS. */
-export const RAIL_W = 224;
+/** Chrome geometry — must match the renderer's CSS. Rail width is dynamic (collapse). */
+export const RAIL_EXPANDED_W = 224;
 export const TOP_H = 84;
 export const PANEL_W = 384;
 
@@ -24,6 +24,7 @@ export class TabManager {
   private activeByProfile = new Map<string, string>();
   private activeProfile: string | null = null;
   private panelOpen = false;
+  private railWidth = RAIL_EXPANDED_W;
   private attached: string | null = null;
 
   constructor(private win: BrowserWindow) {
@@ -152,6 +153,11 @@ export class TabManager {
     this.emit();
   }
 
+  setRailWidth(width: number): void {
+    this.railWidth = width;
+    this.layout();
+  }
+
   private showActive(): void {
     const nextId = this.activeProfile ? this.activeByProfile.get(this.activeProfile) : undefined;
     if (this.attached === nextId) {
@@ -179,9 +185,9 @@ export class TabManager {
     if (!tab) return;
     const [w, h] = this.win.getContentSize();
     tab.view.setBounds({
-      x: RAIL_W,
+      x: this.railWidth,
       y: TOP_H,
-      width: Math.max(0, w - RAIL_W - (this.panelOpen ? PANEL_W : 0)),
+      width: Math.max(0, w - this.railWidth - (this.panelOpen ? PANEL_W : 0)),
       height: Math.max(0, h - TOP_H),
     });
   }

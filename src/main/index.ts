@@ -12,7 +12,15 @@ function createWindow(): void {
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#252525',
+    // Custom chrome: no OS titlebar, but keep native min/max/close as an
+    // overlay — the renderer reserves drag space at the top for it.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#00000000',
+      symbolColor: '#d4d4d4',
+      height: 40,
+    },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
     },
@@ -39,6 +47,7 @@ app.whenReady().then(() => {
   ipcMain.handle('tabs:forward', (_e, id: string) => tabs.forward(id));
   ipcMain.handle('tabs:reload', (_e, id: string) => tabs.reload(id));
   ipcMain.handle('tabs:panel', (_e, open: boolean) => tabs.setPanelOpen(open));
+  ipcMain.handle('tabs:railWidth', (_e, width: number) => tabs.setRailWidth(width));
   ipcMain.handle('tabs:snapshot', () => tabs.snapshot());
 
   // Pigeon API — main-process only; the key never reaches a renderer.

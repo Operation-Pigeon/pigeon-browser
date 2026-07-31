@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeftIcon, CopyIcon, RotateCwIcon } from 'lucide-react';
 import type { MailDetail, MailSummary } from '../../../shared/types';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 /** Codes 4-8 digits in mail newer than this are offered for one-click copy. */
 const OTP_WINDOW_MS = 10 * 60 * 1000;
@@ -18,7 +21,8 @@ function extractOtp(m: MailSummary): string | null {
 
 /**
  * Right panel: this inbox's mail, polled while open. The reason this browser
- * exists — the OTP arrives next to the login form that wants it.
+ * exists — the OTP arrives next to the login form that wants it. Width must
+ * match PANEL_W in src/main/tabs.ts (w-96 = 384px).
  */
 export function MailPanel({ address }: { address: string }) {
   const [mail, setMail] = useState<MailSummary[]>([]);
@@ -56,33 +60,31 @@ export function MailPanel({ address }: { address: string }) {
   }
 
   return (
-    <aside className="flex w-96 shrink-0 flex-col border-l border-neutral-800">
-      <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
+    <aside className="flex w-96 shrink-0 flex-col border-l bg-sidebar">
+      <div className="flex items-center gap-2 border-b px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{address}</span>
-        <button
-          type="button"
-          onClick={refresh}
-          className="rounded-md px-2 py-0.5 text-sm hover:bg-neutral-800"
-          title="Refresh"
-        >
-          ⟳
-        </button>
+        <Button variant="ghost" size="icon-sm" onClick={refresh} title="Refresh">
+          <RotateCwIcon />
+        </Button>
       </div>
 
       {otps.length > 0 && (
-        <div className="flex flex-col gap-1 border-b border-neutral-800 p-2">
+        <div className="flex flex-col gap-1 border-b p-2">
           {otps.map((o) => (
             <button
               key={o.id}
               type="button"
               onClick={() => copy(o.code)}
-              className="flex items-center gap-2 rounded-md bg-sky-950 px-2 py-1.5 text-sm hover:bg-sky-900"
+              className="flex items-center gap-2 rounded-md bg-primary/10 px-2 py-1.5 text-sm hover:bg-primary/20"
             >
               <span className="font-mono text-base font-semibold tracking-widest">{o.code}</span>
-              <span className="min-w-0 flex-1 truncate text-left text-xs text-neutral-400">
+              <span className="min-w-0 flex-1 truncate text-left text-xs text-muted-foreground">
                 from {o.from}
               </span>
-              <span className="text-xs">{copied === o.code ? 'Copied ✓' : 'Copy'}</span>
+              <span className="flex items-center gap-1 text-xs">
+                <CopyIcon className="size-3" />
+                {copied === o.code ? 'Copied ✓' : 'Copy'}
+              </span>
             </button>
           ))}
         </div>
@@ -90,20 +92,16 @@ export function MailPanel({ address }: { address: string }) {
 
       {open ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setOpen(null)}
-              className="rounded-md px-1.5 text-sm hover:bg-neutral-800"
-            >
-              ←
-            </button>
+          <div className="flex items-center gap-2 border-b px-3 py-2">
+            <Button variant="ghost" size="icon-sm" onClick={() => setOpen(null)}>
+              <ArrowLeftIcon />
+            </Button>
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {open.subject || '(no subject)'}
             </span>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <p className="mb-2 text-xs text-neutral-500">
+            <p className="mb-2 text-xs text-muted-foreground">
               {open.from[0] ? `${open.from[0].name || open.from[0].email}` : ''} ·{' '}
               {new Date(open.receivedAt).toLocaleString()}
             </p>
@@ -121,29 +119,32 @@ export function MailPanel({ address }: { address: string }) {
               onClick={() =>
                 void window.bridge.pigeon.mailDetail(m.id).then((d) => setOpen(d as MailDetail))
               }
-              className="flex w-full flex-col gap-0.5 border-b border-neutral-900 px-3 py-2 text-left hover:bg-neutral-900"
+              className="flex w-full flex-col gap-0.5 border-b px-3 py-2 text-left hover:bg-accent/50"
             >
               <span className="flex w-full items-center gap-2">
-                {!m.read && <span className="size-1.5 shrink-0 rounded-full bg-sky-500" />}
+                {!m.read && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
                 <span
-                  className={`min-w-0 flex-1 truncate text-sm ${m.read ? 'text-neutral-400' : 'font-semibold'}`}
+                  className={cn(
+                    'min-w-0 flex-1 truncate text-sm',
+                    m.read ? 'text-muted-foreground' : 'font-semibold',
+                  )}
                 >
                   {m.from[0]?.name || m.from[0]?.email || '(unknown)'}
                 </span>
-                <span className="shrink-0 text-xs text-neutral-500">
+                <span className="shrink-0 text-xs text-muted-foreground">
                   {new Date(m.receivedAt).toLocaleTimeString([], {
                     hour: 'numeric',
                     minute: '2-digit',
                   })}
                 </span>
               </span>
-              <span className="w-full truncate text-xs text-neutral-400">
+              <span className="w-full truncate text-xs text-muted-foreground">
                 {m.subject || '(no subject)'} — {m.snippet}
               </span>
             </button>
           ))}
           {mail.length === 0 && (
-            <p className="p-4 text-center text-xs text-neutral-500">No mail yet.</p>
+            <p className="p-4 text-center text-xs text-muted-foreground">No mail yet.</p>
           )}
         </div>
       )}

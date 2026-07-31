@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Loader2Icon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export function KeySetup({ onDone }: { onDone: () => void }) {
   const [key, setKey] = useState('');
@@ -19,35 +22,32 @@ export function KeySetup({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="flex h-full items-center justify-center">
+    <div className="app-drag flex h-full items-center justify-center">
       <form
-        className="flex w-96 flex-col gap-3 rounded-lg border border-neutral-800 p-6"
+        className="app-no-drag flex w-96 flex-col gap-3 rounded-lg border bg-card p-6"
         onSubmit={(e) => {
           e.preventDefault();
           if (key.trim()) void save();
         }}
       >
         <h1 className="text-lg font-semibold">🐦 Pigeon Browser</h1>
-        <p className="text-sm text-neutral-400">
+        <p className="text-sm text-muted-foreground">
           Paste a Pigeon API key. It's stored encrypted on this machine and only ever sent to the
           Pigeon API.
         </p>
-        <input
+        <Input
           type="password"
           placeholder="pgn_..."
           value={key}
           onChange={(e) => setKey(e.target.value)}
           autoFocus
-          className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+          className="select-text"
         />
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <button
-          type="submit"
-          disabled={busy || key.trim() === ''}
-          className="rounded-md bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
-        >
-          {busy ? 'Checking…' : 'Save key'}
-        </button>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button type="submit" disabled={busy || key.trim() === ''}>
+          {busy && <Loader2Icon data-icon="inline-start" className="animate-spin" />}
+          Save key
+        </Button>
       </form>
     </div>
   );
