@@ -37,6 +37,32 @@ function persist(): void {
 }
 
 export const passwords = {
+  /** Metadata only — passwords stay encrypted until a single reveal(id). */
+  list(): Array<{ id: string; profile: string; origin: string; username: string; updatedAt: string }> {
+    return load().map(({ id, profile, origin, username, updatedAt }) => ({
+      id,
+      profile,
+      origin,
+      username,
+      updatedAt,
+    }));
+  },
+
+  reveal(id: string): string | null {
+    const cred = load().find((c) => c.id === id);
+    if (!cred) return null;
+    try {
+      return safeStorage.decryptString(Buffer.from(cred.passwordEnc, 'base64'));
+    } catch {
+      return null;
+    }
+  },
+
+  remove(id: string): void {
+    cache = load().filter((c) => c.id !== id);
+    persist();
+  },
+
   get(profile: string, origin: string): { username: string; password: string } | null {
     const cred = load().find((c) => c.profile === profile && c.origin === origin);
     if (!cred) return null;

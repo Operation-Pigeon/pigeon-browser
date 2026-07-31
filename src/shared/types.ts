@@ -41,6 +41,14 @@ export interface MailDetail {
   hasHtml: boolean;
 }
 
+export interface SavedPassword {
+  id: string;
+  profile: string;
+  origin: string;
+  username: string;
+  updatedAt: string;
+}
+
 export interface Bookmark {
   id: string;
   url: string;

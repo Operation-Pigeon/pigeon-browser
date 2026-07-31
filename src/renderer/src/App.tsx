@@ -3,6 +3,7 @@ import type { BrowserState, Inbox } from '../../shared/types';
 import { KeySetup } from './components/KeySetup';
 import { MailPanel } from './components/MailPanel';
 import { Rail } from './components/Rail';
+import { SettingsOverlay } from './components/SettingsOverlay';
 import { TabStrip } from './components/TabStrip';
 
 const RAIL_EXPANDED = 224;
@@ -13,7 +14,14 @@ export default function App() {
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
   const [browser, setBrowser] = useState<BrowserState | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  function setSettingsOpenAndContent(open: boolean) {
+    setSettingsOpen(open);
+    // Overlay covers the page area — same native-view dance as bookmarks.
+    void window.bridge.tabs.setContentVisible(!open);
+  }
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -80,7 +88,9 @@ export default function App() {
         collapsed={railCollapsed}
         onToggleCollapsed={toggleRail}
         onSelect={(address) => void window.bridge.tabs.setProfile(address)}
+        onOpenSettings={() => setSettingsOpenAndContent(true)}
       />
+      {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
       <div className="flex min-w-0 flex-1 flex-col">
         <TabStrip
           profile={activeProfile}

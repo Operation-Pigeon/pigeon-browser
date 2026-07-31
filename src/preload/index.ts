@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Bookmark, BrowserState } from '../shared/types';
+import type { Bookmark, BrowserState, SavedPassword } from '../shared/types';
 
 const api = {
   tabs: {
@@ -50,6 +50,11 @@ const api = {
         ipcRenderer.removeListener('bookmarks:changed', listener);
       };
     },
+  },
+  passwords: {
+    list: () => ipcRenderer.invoke('passwords:list') as Promise<SavedPassword[]>,
+    reveal: (id: string) => ipcRenderer.invoke('passwords:reveal', id) as Promise<string | null>,
+    remove: (id: string) => ipcRenderer.invoke('passwords:remove', id),
   },
   pigeon: {
     hasKey: () => ipcRenderer.invoke('pigeon:hasKey') as Promise<boolean>,

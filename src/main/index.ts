@@ -89,6 +89,11 @@ app.whenReady().then(() => {
     }
   });
 
+  // Saved-password management — chrome renderer only (never tab preloads).
+  ipcMain.handle('passwords:list', () => passwords.list());
+  ipcMain.handle('passwords:reveal', (_e, id: string) => passwords.reveal(id));
+  ipcMain.handle('passwords:remove', (_e, id: string) => passwords.remove(id));
+
   // Bookmarks — global across all inbox profiles.
   ipcMain.handle('bookmarks:list', () => bookmarks.list());
   ipcMain.handle('bookmarks:toggle', (_e, url: string, title: string, favicon: string | null) =>

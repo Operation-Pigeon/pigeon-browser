@@ -1,4 +1,4 @@
-import { PanelLeftCloseIcon, PanelLeftOpenIcon } from 'lucide-react';
+import { PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon } from 'lucide-react';
 import type { Inbox } from '../../../shared/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,12 +30,14 @@ export function Rail({
   collapsed,
   onToggleCollapsed,
   onSelect,
+  onOpenSettings,
 }: {
   inboxes: Inbox[];
   activeProfile: string | null;
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onSelect: (address: string) => void;
+  onOpenSettings: () => void;
 }) {
   return (
     <aside
@@ -116,6 +118,19 @@ export function Rail({
             No inboxes — create one in the Pigeon webapp or API.
           </p>
         )}
+      </div>
+
+      <div className={cn('border-t p-2', collapsed && 'flex justify-center')}>
+        <Button
+          variant="ghost"
+          size={collapsed ? 'icon-sm' : 'sm'}
+          className={cn(!collapsed && 'w-full justify-start')}
+          onClick={onOpenSettings}
+          title="Settings"
+        >
+          <SettingsIcon data-icon={collapsed ? undefined : 'inline-start'} />
+          {!collapsed && 'Settings'}
+        </Button>
       </div>
     </aside>
   );
