@@ -110,6 +110,13 @@ export default function App() {
     return window.bridge.tabs.onState(setBrowser);
   }, []);
 
+  // Fresh launch lands on the first inbox instead of an empty pane.
+  useEffect(() => {
+    if (browser && browser.activeProfile === null && inboxes.length > 0) {
+      void window.bridge.tabs.setProfile(inboxes[0].address);
+    }
+  }, [browser, inboxes]);
+
   function toggleRail() {
     const next = !railCollapsed;
     setRailCollapsed(next);
