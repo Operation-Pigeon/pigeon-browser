@@ -172,7 +172,7 @@ export default function App() {
       {/* Transient notice pill — lives inside the top chrome strip, the only
           region the native page view never covers. */}
       {notice && (
-        <div className="fixed top-1.5 right-[150px] z-50 rounded-full border bg-popover px-3 py-1 text-xs text-popover-foreground shadow-md">
+        <div className="app-no-drag fixed top-1.5 right-[150px] z-50 rounded-full border bg-popover px-3 py-1 text-xs text-popover-foreground shadow-md">
           {notice}
         </div>
       )}

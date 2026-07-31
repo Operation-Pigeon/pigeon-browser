@@ -21,7 +21,10 @@ export function SavePasswordPrompt() {
   }
 
   return (
-    <div className="fixed top-1.5 right-[150px] z-50 flex items-center gap-2 rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">
+    // app-no-drag: this floats over the tab strip's drag region, and
+    // Chromium only carves a click-through hole for elements that say so —
+    // without it the window drag swallows every click.
+    <div className="app-no-drag fixed top-1.5 right-[150px] z-50 flex items-center gap-2 rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md">
       <KeyIcon className="size-3.5 shrink-0" />
       <span className="max-w-64 truncate">
         Save password for <span className="font-medium">{pending.host}</span> in {pending.profile}?
