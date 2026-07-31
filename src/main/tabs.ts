@@ -41,15 +41,18 @@ export class TabManager {
     win.on('resize', () => this.layout());
     // Shortcuts must also work while focus sits in the chrome renderer.
     this.wireKeys(win.webContents);
-    mirror.attach({
-      activeWebContents: (profile) => this.activeWebContents(profile),
-      ensureTab: (profile) => this.ensureTab(profile),
-      navigateProfile: (profile, url) => {
-        const id = this.activeByProfile.get(profile);
-        if (id) this.navigate(id, url);
+    mirror.attach(
+      {
+        activeWebContents: (profile) => this.activeWebContents(profile),
+        ensureTab: (profile) => this.ensureTab(profile),
+        navigateProfile: (profile, url) => {
+          const id = this.activeByProfile.get(profile);
+          if (id) this.navigate(id, url);
+        },
+        broadcastMirrorRoles: () => this.broadcastMirrorRoles(),
       },
-      broadcastMirrorRoles: () => this.broadcastMirrorRoles(),
-    });
+      () => this.win.webContents.send('mirror:state', mirror.state()),
+    );
   }
 
   activeWebContents(profile: string): WebContents | null {
@@ -82,6 +85,9 @@ export class TabManager {
 
   setProfile(profile: string): void {
     this.activeProfile = profile;
+    // The inbox you're looking at drives the rest — switch to a deviant one
+    // to fix it by hand and it takes over from there.
+    mirror.makeLeader(profile);
     if ((this.order.get(profile) ?? []).length === 0) {
       this.create(profile);
       return; // create() shows and emits

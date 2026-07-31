@@ -1,4 +1,4 @@
-import { CopyCheckIcon, PauseIcon, PlayIcon, XIcon } from 'lucide-react';
+import { CopyCheckIcon, PauseIcon, PlayIcon, RefreshCwIcon, XIcon } from 'lucide-react';
 import type { MirrorState } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -19,7 +19,9 @@ export function MirrorControls({
   onStart,
   onPause,
   onStop,
+  onResync,
 }: {
+  onResync: () => void;
   state: MirrorState;
   picking: boolean;
   selectionCount: number;
@@ -32,6 +34,9 @@ export function MirrorControls({
   onStop: () => void;
 }) {
   const running = state.leader !== null;
+  const offTrack = Object.values(state.status).filter(
+    (s) => s === 'drifted' || s === 'missed',
+  ).length;
 
   if (collapsed) {
     return (
@@ -58,7 +63,11 @@ export function MirrorControls({
           </span>
         </span>
         <span className="text-muted-foreground">
-          {state.paused ? 'Enter codes in each inbox, then resume.' : 'Actions replay in each.'}
+          {state.paused
+            ? 'Enter codes in each inbox, then resume.'
+            : offTrack > 0
+              ? `${offTrack} off track — switch to one to take over, or resync.`
+              : 'Actions replay in each.'}
         </span>
         <span className="flex items-center gap-1">
           <Button size="sm" variant="outline" className="h-6 flex-1" onClick={onPause}>
@@ -73,6 +82,15 @@ export function MirrorControls({
                 Pause
               </>
             )}
+          </Button>
+          <Button
+            size="sm"
+            variant={offTrack > 0 ? 'default' : 'ghost'}
+            className="h-6"
+            onClick={onResync}
+            title="Bring followers to my current page"
+          >
+            <RefreshCwIcon />
           </Button>
           <Button size="sm" variant="ghost" className="h-6" onClick={onStop} title="Stop">
             <XIcon />

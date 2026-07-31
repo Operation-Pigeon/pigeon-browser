@@ -65,7 +65,12 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // One right bar at a time.
   const [rightPanel, setRightPanel] = useState<'mail' | 'passwords' | 'history' | null>(null);
-  const [mirror, setMirror] = useState<MirrorState>({ leader: null, followers: [], paused: false });
+  const [mirror, setMirror] = useState<MirrorState>({
+    leader: null,
+    followers: [],
+    paused: false,
+    status: {},
+  });
   const [mirrorPicking, setMirrorPicking] = useState(false);
   const [mirrorSelection, setMirrorSelection] = useState<string[]>([]);
   const topRef = useRef<HTMLDivElement>(null);
@@ -209,7 +214,14 @@ export default function App() {
         onOpenSettings={() => setSettingsOpenAndContent(true)}
         mirrorLeader={mirror.leader}
         mirrorFollowers={mirrorPicking ? mirrorSelection : mirror.followers}
+        mirrorStatus={mirror.status}
         mirrorPicking={mirrorPicking}
+        onToggleFollowerPause={(address) =>
+          void window.bridge.mirror.setFollowerPaused(
+            address,
+            mirror.status[address] !== 'paused',
+          )
+        }
         onToggleFollower={(address) =>
           setMirrorSelection((s) =>
             s.includes(address) ? s.filter((a) => a !== address) : [...s, address],
@@ -232,20 +244,16 @@ export default function App() {
                 setMirrorPicking(false);
                 setMirrorSelection([]);
               }}
-              onStart={async () => {
+              onStart={() => {
                 if (!activeProfile) return;
-                await window.bridge.mirror.start(activeProfile, mirrorSelection);
+                void window.bridge.mirror.start(activeProfile, mirrorSelection);
                 setMirrorPicking(false);
-                setMirror(await window.bridge.mirror.state());
               }}
-              onPause={async () => {
-                await window.bridge.mirror.setPaused(!mirror.paused);
-                setMirror(await window.bridge.mirror.state());
-              }}
-              onStop={async () => {
-                await window.bridge.mirror.stop();
+              onPause={() => void window.bridge.mirror.setPaused(!mirror.paused)}
+              onResync={() => void window.bridge.mirror.resync()}
+              onStop={() => {
+                void window.bridge.mirror.stop();
                 setMirrorSelection([]);
-                setMirror(await window.bridge.mirror.state());
               }}
             />
           </>

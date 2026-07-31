@@ -253,10 +253,7 @@ window.addEventListener(
   true,
 );
 
-ipcRenderer.on('mirror:apply', (_e, event: { kind: string; target: { selector: string; text?: string }; value?: string }) => {
-  if (role !== 'follower') return;
-  const el = resolve(event.target);
-  if (!el) return;
+function applyTo(el: HTMLElement, event: { kind: string; value?: string }): void {
   applying = true;
   try {
     switch (event.kind) {
@@ -279,4 +276,45 @@ ipcRenderer.on('mirror:apply', (_e, event: { kind: string; target: { selector: s
   } finally {
     applying = false;
   }
-});
+}
+
+ipcRenderer.on(
+  'mirror:apply',
+  (_e, event: { kind: string; target: { selector: string; text?: string }; value?: string }) => {
+    if (role !== 'follower') return;
+
+    const immediate = resolve(event.target);
+    if (immediate) {
+      applyTo(immediate, event);
+      ipcRenderer.send('mirror:result', true);
+      return;
+    }
+
+    // A follower mid-load simply doesn't have the element yet; most "misses"
+    // are timing, not real divergence. Wait for it via MutationObserver
+    // rather than polling: follower tabs are hidden pages, and Chromium
+    // throttles timers there — exactly where the retry is needed most.
+    let settled = false;
+    const finish = (el: HTMLElement | null) => {
+      if (settled) return;
+      settled = true;
+      observer.disconnect();
+      clearTimeout(giveUp);
+      if (el) applyTo(el, event);
+      ipcRenderer.send('mirror:result', el !== null);
+    };
+    const observer = new MutationObserver(() => {
+      if (role !== 'follower') return finish(null);
+      const el = resolve(event.target);
+      if (el) finish(el);
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+    // Generous because a throttled timer may fire late; the observer is what
+    // usually settles this.
+    const giveUp = setTimeout(() => finish(null), 5000);
+  },
+);

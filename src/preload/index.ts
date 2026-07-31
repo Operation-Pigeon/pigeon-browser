@@ -80,6 +80,10 @@ const api = {
       ipcRenderer.invoke('mirror:start', leader, followers),
     stop: () => ipcRenderer.invoke('mirror:stop'),
     setPaused: (paused: boolean) => ipcRenderer.invoke('mirror:pause', paused),
+    setFollowerPaused: (profile: string, paused: boolean) =>
+      ipcRenderer.invoke('mirror:pauseFollower', profile, paused),
+    makeLeader: (profile: string) => ipcRenderer.invoke('mirror:makeLeader', profile),
+    resync: () => ipcRenderer.invoke('mirror:resync'),
     onState: (cb: (s: MirrorState) => void): (() => void) => {
       const listener = (_e: unknown, s: MirrorState) => cb(s);
       ipcRenderer.on('mirror:state', listener);

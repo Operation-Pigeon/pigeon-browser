@@ -144,19 +144,21 @@ app.whenReady().then(() => {
     const profile = tabs.profileOfWebContents(e.sender);
     if (profile) mirror.onLeaderEvent(profile, event);
   });
+  ipcMain.on('mirror:result', (e, ok: boolean) => {
+    const profile = tabs.profileOfWebContents(e.sender);
+    if (profile) mirror.onApplyResult(profile, ok);
+  });
   ipcMain.handle('mirror:state', () => mirror.state());
-  ipcMain.handle('mirror:start', (_e, leader: string, followers: string[]) => {
-    mirror.start(leader, followers);
-    win.webContents.send('mirror:state', mirror.state());
-  });
-  ipcMain.handle('mirror:stop', () => {
-    mirror.stop();
-    win.webContents.send('mirror:state', mirror.state());
-  });
-  ipcMain.handle('mirror:pause', (_e, paused: boolean) => {
-    mirror.setPaused(paused);
-    win.webContents.send('mirror:state', mirror.state());
-  });
+  ipcMain.handle('mirror:start', (_e, leader: string, followers: string[]) =>
+    mirror.start(leader, followers),
+  );
+  ipcMain.handle('mirror:stop', () => mirror.stop());
+  ipcMain.handle('mirror:pause', (_e, paused: boolean) => mirror.setPaused(paused));
+  ipcMain.handle('mirror:pauseFollower', (_e, profile: string, paused: boolean) =>
+    mirror.setFollowerPaused(profile, paused),
+  );
+  ipcMain.handle('mirror:makeLeader', (_e, profile: string) => mirror.makeLeader(profile));
+  ipcMain.handle('mirror:resync', () => mirror.resync());
 
   // History — panel is always per-inbox; only suggestions honour the
   // share setting.

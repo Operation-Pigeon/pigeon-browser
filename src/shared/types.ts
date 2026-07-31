@@ -55,10 +55,15 @@ export type MirrorEvent =
   | { kind: 'submit'; target: ElementRef }
   | { kind: 'key'; target: ElementRef; key: string };
 
+/** in-sync | drifted (different page) | missed (target not found) | paused */
+export type FollowerStatus = 'synced' | 'drifted' | 'missed' | 'paused';
+
 export interface MirrorState {
   leader: string | null;
   followers: string[];
   paused: boolean;
+  /** Per-follower health, so the rail can show what's actually happening. */
+  status: Record<string, FollowerStatus>;
 }
 
 export interface HistoryEntry {

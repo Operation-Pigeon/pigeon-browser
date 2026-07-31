@@ -99,6 +99,37 @@ app.whenReady().then(async () => {
   );
   check('paused follower ignores events', afterPause, '1');
 
+  // Retry: element that only appears after the action is sent must still be
+  // hit (a follower mid-load is the common case).
+  follower.send('mirror:role', 'follower');
+  await follower.executeJavaScript(`
+    document.getElementById('go').remove();
+    setTimeout(() => {
+      const b = document.createElement('button');
+      b.id = 'go'; b.type = 'button';
+      b.addEventListener('click', () => {
+        const c = document.getElementById('clicks');
+        c.textContent = String(Number(c.textContent) + 1);
+      });
+      document.getElementById('f').appendChild(b);
+    }, 700);
+    true
+  `);
+  follower.send('mirror:apply', { kind: 'click', target: { selector: '#go' } });
+  await sleep(1800);
+  const afterRetry = await follower.executeJavaScript(
+    `document.getElementById('clicks').textContent`,
+  );
+  check('retries until the element exists', afterRetry, '2');
+
+  // And a target that never appears reports a miss rather than hanging.
+  // (Waits out the agent's give-up timer, hence the long sleep.)
+  let lastResult = null;
+  ipcMain.on('mirror:result', (_e, ok) => (lastResult = ok));
+  follower.send('mirror:apply', { kind: 'click', target: { selector: '#nope-not-here' } });
+  await sleep(6000);
+  check('reports a miss when unresolvable', lastResult, false);
+
   console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURES`);
   app.exit(failures === 0 ? 0 : 1);
 });

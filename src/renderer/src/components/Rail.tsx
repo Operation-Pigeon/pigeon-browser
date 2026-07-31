@@ -1,9 +1,28 @@
-import { PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon } from 'lucide-react';
-import type { Inbox } from '../../../shared/types';
+import {
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PauseIcon,
+  PlayIcon,
+  SettingsIcon,
+} from 'lucide-react';
+import type { FollowerStatus, Inbox } from '../../../shared/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+
+function statusLabel(status: FollowerStatus): string {
+  switch (status) {
+    case 'drifted':
+      return 'on a different page';
+    case 'missed':
+      return "couldn't apply last action";
+    case 'paused':
+      return 'paused';
+    default:
+      return 'in sync';
+  }
+}
 
 function Avatar({ inbox, active }: { inbox: Inbox; active: boolean }) {
   return (
@@ -35,9 +54,14 @@ export function Rail({
   footerSlot,
   mirrorLeader,
   mirrorFollowers,
+  mirrorStatus,
   mirrorPicking,
   onToggleFollower,
+  onToggleFollowerPause,
 }: {
+  /** Per-follower health: synced | drifted | missed | paused. */
+  mirrorStatus: Record<string, FollowerStatus>;
+  onToggleFollowerPause: (address: string) => void;
   inboxes: Inbox[];
   activeProfile: string | null;
   collapsed: boolean;
@@ -84,6 +108,20 @@ export function Rail({
           // running it's whatever main reported.
           const isLeader = mirrorPicking ? active : inbox.address === mirrorLeader;
           const isFollower = mirrorFollowers.includes(inbox.address);
+          const status = mirrorStatus[inbox.address];
+          // Ring tells the story at a glance: sky drives, white follows,
+          // amber wandered off, red didn't take the last action.
+          const ring = isLeader
+            ? 'ring-2 ring-sky-400'
+            : isFollower
+              ? status === 'drifted'
+                ? 'ring-2 ring-amber-400'
+                : status === 'missed'
+                  ? 'ring-2 ring-destructive'
+                  : status === 'paused'
+                    ? 'ring-2 ring-foreground/30'
+                    : 'ring-2 ring-foreground/70'
+              : '';
           const button = (
             <button
               key={inbox.address}
@@ -98,8 +136,7 @@ export function Rail({
                 'relative flex items-center gap-2 rounded-md text-left text-sm',
                 collapsed ? 'p-1.5' : 'w-full px-2 py-1.5',
                 active ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/50',
-                isLeader && 'ring-2 ring-sky-400',
-                isFollower && 'ring-2 ring-foreground/70',
+                ring,
               )}
             >
               <Avatar inbox={inbox} active={active} />
@@ -116,9 +153,27 @@ export function Rail({
                       {inbox.displayName || inbox.address}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {inbox.address}
+                      {status && isFollower ? statusLabel(status) : inbox.address}
                     </span>
                   </span>
+                  {isFollower && !mirrorPicking && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title={status === 'paused' ? 'Resume this inbox' : 'Pause just this inbox'}
+                      className="shrink-0 cursor-pointer rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFollowerPause(inbox.address);
+                      }}
+                    >
+                      {status === 'paused' ? (
+                        <PlayIcon className="size-3" />
+                      ) : (
+                        <PauseIcon className="size-3" />
+                      )}
+                    </span>
+                  )}
                   {inbox.unread > 0 && <Badge>{inbox.unread}</Badge>}
                 </>
               )}
@@ -130,7 +185,7 @@ export function Rail({
               <TooltipContent side="right">
                 {inbox.displayName || inbox.address}
                 {inbox.unread > 0 ? ` — ${inbox.unread} unread` : ''}
-                {isLeader ? ' — controlling' : isFollower ? ' — mirrored' : ''}
+                {isLeader ? ' — controlling' : isFollower ? ` — ${statusLabel(status ?? 'synced')}` : ''}
               </TooltipContent>
             </Tooltip>
           ) : (
