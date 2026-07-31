@@ -33,7 +33,8 @@
     "publish": {
       "provider": "github",
       "owner": "Operation-Pigeon",
-      "repo": "pigeon-browser"
+      "repo": "pigeon-browser",
+      "releaseType": "release"
     }
   },
   "dependencies": {
