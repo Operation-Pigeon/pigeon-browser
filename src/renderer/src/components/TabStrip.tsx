@@ -4,6 +4,7 @@ import {
   ArrowRightIcon,
   BookmarkIcon,
   GlobeIcon,
+  KeyIcon,
   LayersIcon,
   Loader2Icon,
   MailIcon,
@@ -34,15 +35,15 @@ export function TabStrip({
   allProfiles,
   tabs,
   activeTabId,
-  panelOpen,
-  onTogglePanel,
+  rightPanel,
+  onSelectPanel,
 }: {
   profile: string | null;
   allProfiles: string[];
   tabs: TabInfo[];
   activeTabId: string | null;
-  panelOpen: boolean;
-  onTogglePanel: () => void;
+  rightPanel: 'mail' | 'passwords' | null;
+  onSelectPanel: (panel: 'mail' | 'passwords') => void;
 }) {
   const active = tabs.find((t) => t.id === activeTabId);
   const [address, setAddress] = useState('');
@@ -270,9 +271,17 @@ export function TabStrip({
           </>
         )}
         <Button
-          variant={panelOpen ? 'secondary' : 'ghost'}
+          variant={rightPanel === 'passwords' ? 'secondary' : 'ghost'}
           size="icon-sm"
-          onClick={onTogglePanel}
+          onClick={() => onSelectPanel('passwords')}
+          title="Saved passwords for this inbox"
+        >
+          <KeyIcon />
+        </Button>
+        <Button
+          variant={rightPanel === 'mail' ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          onClick={() => onSelectPanel('mail')}
           title="Toggle mail panel"
         >
           <MailIcon />

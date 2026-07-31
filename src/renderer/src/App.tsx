@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BrowserState, Inbox } from '../../shared/types';
 import { KeySetup } from './components/KeySetup';
 import { MailPanel } from './components/MailPanel';
+import { PasswordPanel } from './components/PasswordPanel';
 import { Rail } from './components/Rail';
+import { SavePasswordPrompt } from './components/SavePasswordPrompt';
 import { SettingsOverlay } from './components/SettingsOverlay';
 import { TabStrip } from './components/TabStrip';
 
@@ -59,6 +61,8 @@ export default function App() {
   const railWidthRef = useRef(railWidth);
   const panelWidthRef = useRef(panelWidth);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // One right bar at a time.
+  const [rightPanel, setRightPanel] = useState<'mail' | 'passwords' | null>(null);
 
   // Main positions the native view from these — push the remembered values once.
   useEffect(() => {
@@ -162,7 +166,6 @@ export default function App() {
 
   const activeProfile = browser?.activeProfile ?? null;
   const profileTabs = activeProfile ? browser?.profiles[activeProfile] : undefined;
-  const panelOpen = browser?.panelOpen ?? false;
 
   return (
     <div className="flex h-full">
@@ -184,14 +187,21 @@ export default function App() {
       />
       {!railCollapsed && <ResizeHandle onStart={hideContent} onDrag={railDrag} onDone={railDone} />}
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
+      <SavePasswordPrompt />
       <div className="flex min-w-0 flex-1 flex-col">
         <TabStrip
           profile={activeProfile}
           allProfiles={inboxes.map((i) => i.address)}
           tabs={profileTabs?.tabs ?? []}
           activeTabId={profileTabs?.activeTabId ?? null}
-          panelOpen={panelOpen}
-          onTogglePanel={() => void window.bridge.tabs.setPanelOpen(!panelOpen)}
+          rightPanel={rightPanel}
+          onSelectPanel={(panel) => {
+            // Toggle off when re-picking the open one; main only needs to
+            // know whether SOME panel occupies the right edge.
+            const next = rightPanel === panel ? null : panel;
+            setRightPanel(next);
+            void window.bridge.tabs.setPanelOpen(next !== null);
+          }}
         />
         <div className="flex min-h-0 flex-1">
           {/* The WebContentsView floats over this area; it's only visible
@@ -199,10 +209,14 @@ export default function App() {
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             {activeProfile ? '' : 'Pick an inbox on the left to start browsing in its session.'}
           </div>
-          {panelOpen && activeProfile && (
+          {rightPanel && activeProfile && (
             <>
               <ResizeHandle onStart={hideContent} onDrag={panelDrag} onDone={panelDone} />
-              <MailPanel address={activeProfile} width={panelWidth} />
+              {rightPanel === 'mail' ? (
+                <MailPanel address={activeProfile} width={panelWidth} />
+              ) : (
+                <PasswordPanel address={activeProfile} width={panelWidth} />
+              )}
             </>
           )}
         </div>

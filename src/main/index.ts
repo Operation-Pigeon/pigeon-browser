@@ -4,7 +4,12 @@ import { TabManager } from './tabs';
 import { pigeon } from './pigeonApi';
 import { bookmarks } from './bookmarks';
 import { passwords } from './passwords';
+import { getAutoSavePasswords, setAutoSavePasswords } from './settings';
 import { startUpdater } from './updater';
+
+/** Capture waiting on a save prompt (auto-save off). Cleared on answer. */
+let pendingCredential: { profile: string; origin: string; username: string; password: string } | null =
+  null;
 
 let win: BrowserWindow;
 let tabs: TabManager;
@@ -87,10 +92,37 @@ app.whenReady().then(() => {
     }
     const username = typeof payload.username === 'string' ? payload.username.slice(0, 200) : '';
     const password = typeof payload.password === 'string' ? payload.password.slice(0, 500) : '';
-    if (passwords.upsert(profile, origin, username, password)) {
-      win.webContents.send('chrome:notice', `Password saved · ${new URL(origin).host} · ${profile}`);
+    if (!password) return;
+
+    if (getAutoSavePasswords()) {
+      if (passwords.upsert(profile, origin, username, password)) {
+        win.webContents.send('chrome:notice', `Password saved · ${new URL(origin).host} · ${profile}`);
+      }
+      return;
     }
+
+    // Prompt mode: hold it in memory and ask the chrome. Nothing touches
+    // disk until the user says yes.
+    const existing = passwords.get(profile, origin);
+    if (existing?.username === username && existing?.password === password) return;
+    pendingCredential = { profile, origin, username, password };
+    win.webContents.send('passwords:prompt', {
+      profile,
+      origin,
+      host: new URL(origin).host,
+      username,
+    });
   });
+
+  ipcMain.handle('passwords:resolvePrompt', (_e, save: boolean) => {
+    const pending = pendingCredential;
+    pendingCredential = null;
+    if (!pending || !save) return false;
+    return passwords.upsert(pending.profile, pending.origin, pending.username, pending.password);
+  });
+
+  ipcMain.handle('settings:get', () => ({ autoSavePasswords: getAutoSavePasswords() }));
+  ipcMain.handle('settings:setAutoSave', (_e, value: boolean) => setAutoSavePasswords(value));
 
   // Saved-password management — chrome renderer only (never tab preloads).
   ipcMain.handle('passwords:list', () => passwords.list());

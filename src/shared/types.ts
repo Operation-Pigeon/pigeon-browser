@@ -41,6 +41,14 @@ export interface MailDetail {
   hasHtml: boolean;
 }
 
+/** A capture awaiting the user's yes/no when auto-save is off. */
+export interface PendingCredential {
+  profile: string;
+  origin: string;
+  host: string;
+  username: string;
+}
+
 export interface SavedPassword {
   id: string;
   profile: string;

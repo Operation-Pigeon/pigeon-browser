@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Bookmark, BrowserState, SavedPassword } from '../shared/types';
+import type { Bookmark, BrowserState, PendingCredential, SavedPassword } from '../shared/types';
 
 const api = {
   tabs: {
@@ -56,6 +56,19 @@ const api = {
     list: () => ipcRenderer.invoke('passwords:list') as Promise<SavedPassword[]>,
     reveal: (id: string) => ipcRenderer.invoke('passwords:reveal', id) as Promise<string | null>,
     remove: (id: string) => ipcRenderer.invoke('passwords:remove', id),
+    resolvePrompt: (save: boolean) =>
+      ipcRenderer.invoke('passwords:resolvePrompt', save) as Promise<boolean>,
+    onPrompt: (cb: (p: PendingCredential) => void): (() => void) => {
+      const listener = (_e: unknown, p: PendingCredential) => cb(p);
+      ipcRenderer.on('passwords:prompt', listener);
+      return () => {
+        ipcRenderer.removeListener('passwords:prompt', listener);
+      };
+    },
+  },
+  settings: {
+    get: () => ipcRenderer.invoke('settings:get') as Promise<{ autoSavePasswords: boolean }>,
+    setAutoSave: (value: boolean) => ipcRenderer.invoke('settings:setAutoSave', value),
   },
   pigeon: {
     hasKey: () => ipcRenderer.invoke('pigeon:hasKey') as Promise<boolean>,

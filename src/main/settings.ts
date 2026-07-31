@@ -3,25 +3,53 @@ import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 /**
- * The Pigeon API key, encrypted at rest with the OS keychain (DPAPI on
- * Windows). Nothing else is worth persisting yet.
+ * App settings + the Pigeon API key (encrypted at rest with the OS keychain,
+ * DPAPI on Windows).
  */
+interface SettingsFile {
+  key?: string;
+  autoSavePasswords?: boolean;
+}
+
 const file = () => join(app.getPath('userData'), 'pigeon-settings.json');
 
-let cached: string | null | undefined;
+let cache: SettingsFile | null = null;
+
+function load(): SettingsFile {
+  if (cache) return cache;
+  try {
+    cache = JSON.parse(readFileSync(file(), 'utf8')) as SettingsFile;
+  } catch {
+    cache = {};
+  }
+  return cache;
+}
+
+function persist(): void {
+  writeFileSync(file(), JSON.stringify(cache ?? {}));
+}
 
 export function getApiKey(): string | null {
-  if (cached !== undefined) return cached;
+  const raw = load().key;
+  if (!raw) return null;
   try {
-    const raw = JSON.parse(readFileSync(file(), 'utf8')) as { key?: string };
-    cached = raw.key ? safeStorage.decryptString(Buffer.from(raw.key, 'base64')) : null;
+    return safeStorage.decryptString(Buffer.from(raw, 'base64'));
   } catch {
-    cached = null;
+    return null;
   }
-  return cached;
 }
 
 export function setApiKey(key: string): void {
-  writeFileSync(file(), JSON.stringify({ key: safeStorage.encryptString(key).toString('base64') }));
-  cached = key;
+  load().key = safeStorage.encryptString(key).toString('base64');
+  persist();
+}
+
+/** Prompt-to-save is the default; flipping this restores silent capture. */
+export function getAutoSavePasswords(): boolean {
+  return load().autoSavePasswords ?? false;
+}
+
+export function setAutoSavePasswords(value: boolean): void {
+  load().autoSavePasswords = value;
+  persist();
 }

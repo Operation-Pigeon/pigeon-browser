@@ -1,25 +1,22 @@
 import { useEffect, useState } from 'react';
-import { EyeIcon, EyeOffIcon, Loader2Icon, Trash2Icon, XIcon } from 'lucide-react';
-import type { SavedPassword } from '../../../shared/types';
+import { Loader2Icon, XIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 
 /**
- * Global settings + saved passwords. Passwords are inherently per inbox —
- * the list is grouped by profile, and revealing decrypts exactly one entry
- * on demand. The overlay covers the page area, so the caller hides the
- * native view while it's open (bookmarks pattern).
+ * Global settings. Saved passwords live in their own right-bar panel (they
+ * are per-inbox); this is app-wide config only. The overlay covers the page
+ * area, so the caller hides the native view while it's open.
  */
 export function SettingsOverlay({ onClose }: { onClose: () => void }) {
   const [key, setKey] = useState('');
   const [keyBusy, setKeyBusy] = useState(false);
   const [keyMsg, setKeyMsg] = useState('');
-  const [saved, setSaved] = useState<SavedPassword[]>([]);
-  const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [autoSave, setAutoSave] = useState(false);
 
   useEffect(() => {
-    void window.bridge.passwords.list().then(setSaved);
+    void window.bridge.settings.get().then((s) => setAutoSave(s.autoSavePasswords));
   }, []);
 
   async function saveKey() {
@@ -36,28 +33,10 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
     }
   }
 
-  async function toggleReveal(id: string) {
-    if (revealed[id] !== undefined) {
-      setRevealed((r) => {
-        const next = { ...r };
-        delete next[id];
-        return next;
-      });
-      return;
-    }
-    const pw = await window.bridge.passwords.reveal(id);
-    if (pw !== null) setRevealed((r) => ({ ...r, [id]: pw }));
+  function toggleAutoSave(value: boolean) {
+    setAutoSave(value);
+    void window.bridge.settings.setAutoSave(value);
   }
-
-  async function remove(id: string) {
-    await window.bridge.passwords.remove(id);
-    setSaved(await window.bridge.passwords.list());
-  }
-
-  const byProfile = saved.reduce<Record<string, SavedPassword[]>>((acc, p) => {
-    (acc[p.profile] ??= []).push(p);
-    return acc;
-  }, {});
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-background/80 pt-24">
@@ -94,46 +73,22 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
           <Separator />
 
           <section className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium">Saved passwords</h2>
-            {saved.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Nothing saved yet — log in somewhere and it lands here, scoped to that inbox.
-              </p>
-            )}
-            {Object.entries(byProfile).map(([profile, entries]) => (
-              <div key={profile} className="flex flex-col gap-1">
-                <h3 className="mt-1 text-xs font-semibold text-muted-foreground">{profile}</h3>
-                {entries.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{new URL(p.origin).host}</span>
-                      <span className="block truncate text-xs text-muted-foreground select-text">
-                        {p.username || '(no username)'}
-                        {revealed[p.id] !== undefined && (
-                          <span className="ml-2 font-mono">{revealed[p.id]}</span>
-                        )}
-                      </span>
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => void toggleReveal(p.id)}
-                      title={revealed[p.id] !== undefined ? 'Hide password' : 'Reveal password'}
-                    >
-                      {revealed[p.id] !== undefined ? <EyeOffIcon /> : <EyeIcon />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => void remove(p.id)}
-                      title="Delete saved password"
-                    >
-                      <Trash2Icon />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ))}
+            <h2 className="text-sm font-medium">Passwords</h2>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={autoSave}
+                onChange={(e) => toggleAutoSave(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Save passwords automatically
+                <span className="block text-xs text-muted-foreground">
+                  Off: you get a prompt after each login. Saved logins live in the key panel on the
+                  right, per inbox.
+                </span>
+              </span>
+            </label>
           </section>
         </div>
       </div>
