@@ -18,20 +18,8 @@ const BASE_MAIL_STYLE = '<style>body{margin:0;padding:12px;font-size:14px}</styl
 const DARK_MAIL_STYLE =
   '<style>:root{color-scheme:dark}body{background:transparent;color:#e7e7e7;font-family:system-ui,sans-serif}a{color:#8ab4f8}</style>';
 
-/** Codes 4-8 digits in mail newer than this are offered for one-click copy. */
+/** Codes in mail newer than this are offered for one-click copy. */
 const OTP_WINDOW_MS = 10 * 60 * 1000;
-const OTP_RE = /\b(\d{4,8})\b/g;
-
-function extractOtp(m: MailSummary): string | null {
-  const haystack = `${m.subject} ${m.snippet}`;
-  const candidates = [...haystack.matchAll(OTP_RE)].map((x) => x[1]);
-  // Prefer 6 digits (the overwhelming convention), then longest.
-  return (
-    candidates.find((c) => c.length === 6) ??
-    candidates.sort((a, b) => b.length - a.length)[0] ??
-    null
-  );
-}
 
 /**
  * Right panel: this inbox's mail, polled while open. The reason this browser
@@ -105,12 +93,21 @@ export function MailPanel({ address, width }: { address: string; width: number }
 
   usePolling(refresh, 10_000);
 
+  // Codes come from the API, which extracts them at ingest from the full
+  // body. The panel used to re-derive them from the subject and snippet with
+  // a bare \d{4,8} — which happily offered "2026" out of a copyright line as
+  // your login code. Two extractors also meant the chip and the popup could
+  // disagree about the same message.
   const otps = useMemo(() => {
     const now = Date.now();
     return mail
-      .filter((m) => now - new Date(m.receivedAt).getTime() < OTP_WINDOW_MS)
-      .map((m) => ({ id: m.id, code: extractOtp(m), from: m.from[0]?.name || m.from[0]?.email }))
-      .filter((x): x is { id: string; code: string; from: string } => x.code !== null)
+      .filter((m) => m.otp && now - new Date(m.receivedAt).getTime() < OTP_WINDOW_MS)
+      .map((m) => ({
+        id: m.id,
+        code: m.otp!.code,
+        confidence: m.otp!.confidence,
+        from: m.from[0]?.name || m.from[0]?.email || '(unknown)',
+      }))
       .slice(0, 3);
   }, [mail]);
 
@@ -141,6 +138,8 @@ export function MailPanel({ address, width }: { address: string; width: number }
               <span className="font-mono text-base font-semibold tracking-widest">{o.code}</span>
               <span className="min-w-0 flex-1 truncate text-left text-xs text-muted-foreground">
                 from {o.from}
+                {/* A guess worth showing but not trusting silently. */}
+                {o.confidence !== 'HIGH' && ' · unsure'}
               </span>
               <span className="flex items-center gap-1 text-xs">
                 <CopyIcon className="size-3" />

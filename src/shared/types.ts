@@ -35,6 +35,8 @@ export interface MailSummary {
   deletedAt: string | null;
   count: number;
   read: boolean;
+  /** Extracted server-side at ingest; null when the message carries no code. */
+  otp: { code: string; confidence: 'HIGH' | 'MEDIUM' | 'LOW' } | null;
 }
 
 export interface MailDetail {
