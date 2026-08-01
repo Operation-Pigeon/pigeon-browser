@@ -39,6 +39,14 @@ const api = {
         ipcRenderer.removeListener('chrome:focusAddress', listener);
       };
     },
+    isFocused: () => ipcRenderer.invoke('chrome:isFocused') as Promise<boolean>,
+    onFocus: (cb: (focused: boolean) => void): (() => void) => {
+      const listener = (_e: unknown, focused: boolean) => cb(focused);
+      ipcRenderer.on('chrome:focus', listener);
+      return () => {
+        ipcRenderer.removeListener('chrome:focus', listener);
+      };
+    },
     onNotice: (cb: (text: string) => void): (() => void) => {
       const listener = (_e: unknown, text: string) => cb(text);
       ipcRenderer.on('chrome:notice', listener);

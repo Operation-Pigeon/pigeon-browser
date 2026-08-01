@@ -45,6 +45,19 @@ function createWindow(): void {
   });
   win.setMenuBarVisibility(false);
 
+  // Window-level focus, not DOM focus: clicking into a tab moves DOM focus to
+  // that WebContentsView and blurs the chrome, though the user is plainly
+  // still using the app. Only the BrowserWindow knows the difference, so
+  // pollers subscribe to this rather than window.onblur.
+  const sendFocus = (focused: boolean): void => {
+    if (!win.isDestroyed()) win.webContents.send('chrome:focus', focused);
+  };
+  win.on('focus', () => sendFocus(true));
+  win.on('blur', () => sendFocus(false));
+  // Minimized windows keep "focus" if they were focused on the way down.
+  win.on('minimize', () => sendFocus(false));
+  win.on('restore', () => sendFocus(true));
+
   tabs = new TabManager(win);
   bookmarks.init(win);
   startUpdater(win);
@@ -77,6 +90,9 @@ process.on('uncaughtException', (err) => {
 
 app.whenReady().then(() => {
   // Tab commands — thin pass-throughs; TabManager owns all state.
+  // Initial value for pollers — focus events only fire on change, so a
+  // renderer that loads while unfocused would otherwise assume it's focused.
+  ipcMain.handle('chrome:isFocused', () => !win.isDestroyed() && win.isFocused());
   ipcMain.handle('tabs:setProfile', (_e, profile: string) => tabs.setProfile(profile));
   ipcMain.handle('tabs:create', (_e, profile: string, url?: string, background?: boolean) =>
     tabs.create(profile, url, background ?? false),

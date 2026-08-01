@@ -3,6 +3,7 @@ import { ArrowLeftIcon, CopyIcon, MoonIcon, RotateCwIcon, SunIcon } from 'lucide
 import type { MailDetail, MailSummary } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { usePolling } from '@/lib/usePolling';
 
 const BASE_MAIL_STYLE = '<style>body{margin:0;padding:12px;font-size:14px}</style>';
 const DARK_MAIL_STYLE =
@@ -61,13 +62,15 @@ export function MailPanel({ address, width }: { address: string; width: number }
       .catch(() => {});
   }, [address]);
 
+  // Switching inbox clears immediately so the panel never shows one inbox's
+  // mail under another's name; polling itself is focus-gated below.
   useEffect(() => {
     setMail([]);
     setOpen(null);
     refresh();
-    const t = setInterval(refresh, 10_000);
-    return () => clearInterval(t);
   }, [refresh]);
+
+  usePolling(refresh, 10_000);
 
   const otps = useMemo(() => {
     const now = Date.now();

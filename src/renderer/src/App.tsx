@@ -10,6 +10,7 @@ import { Rail } from './components/Rail';
 import { SavePasswordPrompt } from './components/SavePasswordPrompt';
 import { SettingsOverlay } from './components/SettingsOverlay';
 import { TabStrip } from './components/TabStrip';
+import { usePolling } from './lib/usePolling';
 
 const RAIL_COLLAPSED = 56;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -131,14 +132,12 @@ export default function App() {
     void window.bridge.pigeon.hasKey().then(setKeyed);
   }, []);
 
-  useEffect(() => {
-    if (!keyed) return;
-    loadInboxes();
-    // 10s: fast enough that a code shows up well inside a minute, and it's a
-    // single request no matter how many inboxes exist.
-    const t = setInterval(loadInboxes, 10_000);
-    return () => clearInterval(t);
-  }, [keyed, loadInboxes]);
+  // 10s: fast enough that a code shows up well inside a minute, and it's a
+  // single request no matter how many inboxes exist. Focused-only — an OTP
+  // arrives because the user just asked a page for one, so they're here.
+  // `=== true`: keyed is null until the key check resolves, and unknown must
+  // not poll.
+  usePolling(loadInboxes, 10_000, keyed === true);
 
   useEffect(() => {
     void window.bridge.tabs.snapshot().then(setBrowser);
