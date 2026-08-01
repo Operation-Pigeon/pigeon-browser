@@ -38,6 +38,11 @@ export class TabManager {
   private closedStack: Array<{ profile: string; url: string }> = [];
   /** Follower tabs attached invisibly so they can receive mirrored input. */
   private mirrorAttached = new Set<string>();
+  /** Chrome overlays currently open over the page area, by name. */
+  private overlays = new Set<string>();
+  private get contentHidden(): boolean {
+    return this.overlays.size > 0;
+  }
 
   constructor(private win: BrowserWindow) {
     win.on('resize', () => this.layout());
@@ -312,9 +317,32 @@ export class TabManager {
    * area) render UNDER the native WebContentsView — it always sits above the
    * renderer. The overlay tells us to hide the page while it's open.
    */
-  setContentVisible(visible: boolean): void {
+  /**
+   * Chrome overlays (bookmark menu, settings, address suggestions, a resize
+   * drag) each cover the page area, which the native view owns — so the page
+   * hides while any of them is open.
+   *
+   * Tracked by name rather than as one boolean: the owners are independent,
+   * and a single flag let whichever closed last win. Opening a tab focuses
+   * the address bar, whose suggestions then reported "closed" and revealed
+   * the page right underneath the still-open bookmarks menu — which is why
+   * its links stopped responding to hover and clicks.
+   */
+  setOverlay(name: string, open: boolean): void {
+    if (open) this.overlays.add(name);
+    else this.overlays.delete(name);
+    this.applyContentVisibility();
+  }
+
+  /** Chrome reload drops every overlay, so the page must not stay hidden. */
+  clearOverlays(): void {
+    this.overlays.clear();
+    this.applyContentVisibility();
+  }
+
+  private applyContentVisibility(): void {
     if (!this.attached) return;
-    this.tabs.get(this.attached)?.view.setVisible(visible);
+    this.tabs.get(this.attached)?.view.setVisible(!this.contentHidden);
   }
 
   /** The inbox profile owning a given tab webContents — for autofill IPC. */
@@ -455,7 +483,9 @@ export class TabManager {
     if (nextId) {
       const next = this.tabs.get(nextId);
       if (next) {
-        next.view.setVisible(true); // in case it was hidden as a follower or under an overlay
+        // Was hidden as a mirror follower — but stay hidden if a chrome
+        // overlay is currently open over the page area.
+        next.view.setVisible(!this.contentHidden);
         this.win.contentView.addChildView(next.view); // re-adding raises it above the followers
         this.attached = nextId;
         this.layout();

@@ -71,6 +71,10 @@ function createWindow(): void {
     return { action: 'deny' };
   });
 
+  // Reloading the chrome discards whatever dropdown was open, so a page left
+  // hidden under it would stay hidden with nothing left to close.
+  win.webContents.on('did-finish-load', () => tabs.clearOverlays());
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     void win.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
@@ -107,7 +111,7 @@ app.whenReady().then(() => {
   ipcMain.handle('tabs:railWidth', (_e, width: number) => tabs.setRailWidth(width));
   ipcMain.handle('tabs:panelWidth', (_e, width: number) => tabs.setPanelWidth(width));
   ipcMain.handle('tabs:topHeight', (_e, height: number) => tabs.setTopHeight(height));
-  ipcMain.handle('tabs:contentVisible', (_e, visible: boolean) => tabs.setContentVisible(visible));
+  ipcMain.handle('tabs:overlay', (_e, name: string, open: boolean) => tabs.setOverlay(name, open));
   ipcMain.handle('tabs:snapshot', () => tabs.snapshot());
 
   // Credential capture from tab preloads. Everything is derived from the
@@ -214,6 +218,9 @@ app.whenReady().then(() => {
   ipcMain.handle('pigeon:inboxes', () => pigeon.inboxes());
   ipcMain.handle('pigeon:mail', (_e, address: string) => pigeon.mail(address));
   ipcMain.handle('pigeon:mailDetail', (_e, id: string) => pigeon.mailDetail(id));
+  ipcMain.handle('pigeon:markRead', (_e, id: string) => pigeon.markRead(id));
+  ipcMain.handle('pigeon:markUnread', (_e, id: string) => pigeon.markUnread(id));
+  ipcMain.handle('pigeon:deleteMail', (_e, id: string) => pigeon.deleteMail(id));
   ipcMain.handle('pigeon:mailHtml', (_e, id: string) => pigeon.mailHtml(id));
 
   createWindow();

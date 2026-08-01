@@ -105,7 +105,7 @@ export default function App() {
   function setSettingsOpenAndContent(open: boolean) {
     setSettingsOpen(open);
     // Overlay covers the page area — same native-view dance as bookmarks.
-    void window.bridge.tabs.setContentVisible(!open);
+    void window.bridge.tabs.setOverlay('settings', open);
   }
 
   useEffect(() => {
@@ -174,7 +174,7 @@ export default function App() {
   function railDone() {
     localStorage.setItem('railWidth', String(railWidthRef.current));
     void window.bridge.tabs.setRailWidth(railWidthRef.current);
-    void window.bridge.tabs.setContentVisible(true);
+    void window.bridge.tabs.setOverlay('resize', false);
   }
 
   function panelDrag(clientX: number) {
@@ -186,10 +186,11 @@ export default function App() {
   function panelDone() {
     localStorage.setItem('panelWidth', String(panelWidthRef.current));
     void window.bridge.tabs.setPanelWidth(panelWidthRef.current);
-    void window.bridge.tabs.setContentVisible(true);
+    void window.bridge.tabs.setOverlay('resize', false);
   }
 
-  const hideContent = () => void window.bridge.tabs.setContentVisible(false);
+  // Dragging a splitter needs the page out of the way for the whole drag.
+  const hideContent = () => void window.bridge.tabs.setOverlay('resize', true);
 
   if (keyed === null) return null;
   if (!keyed) return <KeySetup onDone={() => setKeyed(true)} />;
@@ -279,7 +280,7 @@ export default function App() {
             setRightPanel(next);
             void window.bridge.tabs.setPanelOpen(next !== null);
           }}
-          onSuggestOpen={(open) => void window.bridge.tabs.setContentVisible(!open)}
+          onSuggestOpen={(open) => void window.bridge.tabs.setOverlay('suggestions', open)}
         />
         </div>
         <div className="flex min-h-0 flex-1">

@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeftIcon, CopyIcon, MoonIcon, RotateCwIcon, SunIcon } from 'lucide-react';
+import {
+  ArrowLeftIcon,
+  CopyIcon,
+  MailIcon,
+  MailOpenIcon,
+  MoonIcon,
+  RotateCwIcon,
+  SunIcon,
+  Trash2Icon,
+} from 'lucide-react';
 import type { MailDetail, MailSummary } from '../../../shared/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,10 +46,34 @@ export function MailPanel({ address, width }: { address: string; width: number }
   const [frameDark, setFrameDark] = useState(false); // mail is authored for light; moon flips it
   const [copied, setCopied] = useState<string | null>(null);
 
+  /**
+   * The server marks mail read when the detail is fetched, but the list is a
+   * separate snapshot — without this the row stays bold until the next poll,
+   * so backing out of a message looked like it hadn't registered.
+   */
+  function setRead(id: string, read: boolean) {
+    setMail((prev) => prev.map((m) => (m.id === id ? { ...m, read } : m)));
+  }
+
+  function toggleRead(m: MailSummary) {
+    setRead(m.id, !m.read);
+    const call = m.read ? window.bridge.pigeon.markUnread : window.bridge.pigeon.markRead;
+    // Roll back on failure rather than leaving the list lying about the server.
+    void call(m.id).catch(() => setRead(m.id, m.read));
+  }
+
+  function remove(id: string) {
+    const prev = mail;
+    setMail((list) => list.filter((m) => m.id !== id));
+    setOpen((o) => (o?.id === id ? null : o));
+    void window.bridge.pigeon.deleteMail(id).catch(() => setMail(prev));
+  }
+
   function openMail(id: string) {
     setOpenHtml(null);
     setBodyView('html');
     setFrameDark(false);
+    setRead(id, true);
     void window.bridge.pigeon.mailDetail(id).then((d) => {
       const detail = d as MailDetail;
       setOpen(detail);
@@ -121,12 +154,37 @@ export function MailPanel({ address, width }: { address: string; width: number }
       {open ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center gap-1 border-b px-2 py-2">
-            <Button variant="ghost" size="icon-sm" onClick={() => setOpen(null)}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Back to mail list"
+              onClick={() => setOpen(null)}
+            >
               <ArrowLeftIcon />
             </Button>
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {open.subject || '(no subject)'}
             </span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Mark unread"
+              onClick={() => {
+                setRead(open.id, false);
+                void window.bridge.pigeon.markUnread(open.id);
+                setOpen(null);
+              }}
+            >
+              <MailIcon />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              title="Delete"
+              onClick={() => remove(open.id)}
+            >
+              <Trash2Icon />
+            </Button>
             {openHtml !== null && (
               <>
                 <Button
@@ -186,34 +244,53 @@ export function MailPanel({ address, width }: { address: string; width: number }
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* Row is a div, not a button: the actions are buttons themselves
+              and nesting them is invalid. The open target stays a button so
+              keyboard and screen readers still treat the row as one. */}
           {mail.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => openMail(m.id)}
-              className="flex w-full flex-col gap-0.5 border-b px-3 py-2 text-left hover:bg-accent/50"
-            >
-              <span className="flex w-full items-center gap-2">
-                {!m.read && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
-                <span
-                  className={cn(
-                    'min-w-0 flex-1 truncate text-sm',
-                    m.read ? 'text-muted-foreground' : 'font-semibold',
-                  )}
+            <div key={m.id} className="group relative border-b hover:bg-accent/50">
+              <button
+                type="button"
+                onClick={() => openMail(m.id)}
+                className="flex w-full flex-col gap-0.5 px-3 py-2 text-left"
+              >
+                <span className="flex w-full items-center gap-2">
+                  {!m.read && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate text-sm',
+                      m.read ? 'text-muted-foreground' : 'font-semibold',
+                    )}
+                  >
+                    {m.from[0]?.name || m.from[0]?.email || '(unknown)'}
+                  </span>
+                  {/* Hidden while the actions are showing, so the timestamp
+                      never sits underneath them. */}
+                  <span className="shrink-0 text-xs text-muted-foreground group-hover:invisible">
+                    {new Date(m.receivedAt).toLocaleTimeString([], {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </span>
+                <span className="w-full truncate text-xs text-muted-foreground">
+                  {m.subject || '(no subject)'} — {m.snippet}
+                </span>
+              </button>
+              <div className="absolute top-1.5 right-2 hidden items-center gap-0.5 group-hover:flex">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title={m.read ? 'Mark unread' : 'Mark read'}
+                  onClick={() => toggleRead(m)}
                 >
-                  {m.from[0]?.name || m.from[0]?.email || '(unknown)'}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {new Date(m.receivedAt).toLocaleTimeString([], {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </span>
-              <span className="w-full truncate text-xs text-muted-foreground">
-                {m.subject || '(no subject)'} — {m.snippet}
-              </span>
-            </button>
+                  {m.read ? <MailIcon /> : <MailOpenIcon />}
+                </Button>
+                <Button variant="ghost" size="icon-sm" title="Delete" onClick={() => remove(m.id)}>
+                  <Trash2Icon />
+                </Button>
+              </div>
+            </div>
           ))}
           {mail.length === 0 && (
             <p className="p-4 text-center text-xs text-muted-foreground">No mail yet.</p>

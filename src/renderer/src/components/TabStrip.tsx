@@ -76,7 +76,7 @@ export function TabStrip({
     setBookmarksOpen(open);
     // The dropdown drops into the page region, which the native view owns —
     // hide the page while it's open or it eats the popover.
-    void window.bridge.tabs.setContentVisible(!open);
+    void window.bridge.tabs.setOverlay('bookmarks', open);
   }
 
   useEffect(() => {

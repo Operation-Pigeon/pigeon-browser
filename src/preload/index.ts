@@ -23,7 +23,7 @@ const api = {
     setRailWidth: (width: number) => ipcRenderer.invoke('tabs:railWidth', width),
     setPanelWidth: (width: number) => ipcRenderer.invoke('tabs:panelWidth', width),
     setTopHeight: (height: number) => ipcRenderer.invoke('tabs:topHeight', height),
-    setContentVisible: (visible: boolean) => ipcRenderer.invoke('tabs:contentVisible', visible),
+    setOverlay: (name: string, open: boolean) => ipcRenderer.invoke('tabs:overlay', name, open),
     snapshot: () => ipcRenderer.invoke('tabs:snapshot') as Promise<BrowserState>,
     onState: (cb: (state: BrowserState) => void): (() => void) => {
       const listener = (_e: unknown, state: BrowserState) => cb(state);
@@ -124,6 +124,9 @@ const api = {
     mail: (address: string) => ipcRenderer.invoke('pigeon:mail', address),
     mailDetail: (id: string) => ipcRenderer.invoke('pigeon:mailDetail', id),
     mailHtml: (id: string) => ipcRenderer.invoke('pigeon:mailHtml', id),
+    markRead: (id: string) => ipcRenderer.invoke('pigeon:markRead', id) as Promise<void>,
+    markUnread: (id: string) => ipcRenderer.invoke('pigeon:markUnread', id) as Promise<void>,
+    deleteMail: (id: string) => ipcRenderer.invoke('pigeon:deleteMail', id) as Promise<void>,
   },
 };
 
