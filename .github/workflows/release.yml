@@ -26,7 +26,33 @@ jobs:
 
       - run: npm run build
 
+      # electron-builder publishes each artifact independently, and each one
+      # creates the release if it's missing. Those calls race: on v0.5.0 both
+      # fired, one lost, and its upload — the 90MB installer — vanished while
+      # the job still exited 0, leaving a release with only a blockmap and no
+      # latest.yml for the updater to read. Creating it up front means every
+      # uploader finds an existing release.
+      - name: Ensure the release exists
+        if: startsWith(github.ref, 'refs/tags/')
+        run: gh release create "$env:GITHUB_REF_NAME" --title "$env:GITHUB_REF_NAME" --notes "" --verify-tag
+        continue-on-error: true # already exists on a re-run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Package and publish
         run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A release without the installer and latest.yml is worse than no
+      # release: the updater reads latest.yml, so a partial upload silently
+      # strands every installed copy on the old version.
+      - name: Verify the published assets
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $assets = gh release view "$env:GITHUB_REF_NAME" --json assets --jq '.assets[].name'
+          Write-Host "assets: $assets"
+          if ($assets -notmatch 'latest\.yml') { throw "latest.yml missing - auto-update would break" }
+          if ($assets -notmatch '\.exe($|\s)') { throw "installer missing" }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
