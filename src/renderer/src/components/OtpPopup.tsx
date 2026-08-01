@@ -1,38 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { CheckIcon, CopyIcon, KeyRoundIcon, XIcon } from 'lucide-react';
-import type { Inbox, OtpHit } from '../../../shared/types';
-
-interface Arrival extends OtpHit {
-  inbox: string;
-}
+import type { Arrival } from '@/lib/useOtpArrivals';
 
 /**
- * Shows up on its own when a code lands — the whole point of the feature:
- * the site sends an OTP and it's on screen within a poll, without opening
- * mail. Dismissed codes never return, and codes already on screen when the
- * app starts are ignored (they're history, not news).
+ * Shows up on its own when a code lands in the inbox you're driving — the
+ * whole point of the feature: the site sends an OTP and it's on screen within
+ * a poll, without opening mail. Codes for other inboxes are badged in the
+ * rail instead (see useOtpArrivals).
  */
-export function OtpPopup({ inboxes }: { inboxes: Inbox[] }) {
-  const [arrivals, setArrivals] = useState<Arrival[]>([]);
+export function OtpPopup({
+  arrivals,
+  onDismiss,
+}: {
+  arrivals: Arrival[];
+  onDismiss: (mailId: string) => void;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
-  const seen = useRef<Set<string> | null>(null);
-
-  useEffect(() => {
-    const fresh: Arrival[] = [];
-    // First poll only records what's already there; anything after it is a
-    // genuine arrival worth interrupting for.
-    const first = seen.current === null;
-    if (first) seen.current = new Set();
-
-    for (const inbox of inboxes) {
-      if (!inbox.otp) continue;
-      const key = `${inbox.address}:${inbox.otp.mailId}`;
-      if (seen.current!.has(key)) continue;
-      seen.current!.add(key);
-      if (!first) fresh.push({ ...inbox.otp, inbox: inbox.address });
-    }
-    if (fresh.length) setArrivals((current) => [...fresh, ...current].slice(0, 3));
-  }, [inboxes]);
 
   if (arrivals.length === 0) return null;
 
@@ -40,10 +23,6 @@ export function OtpPopup({ inboxes }: { inboxes: Inbox[] }) {
     void navigator.clipboard.writeText(arrival.code);
     setCopied(arrival.mailId);
     setTimeout(() => setCopied((c) => (c === arrival.mailId ? null : c)), 1500);
-  }
-
-  function dismiss(mailId: string) {
-    setArrivals((current) => current.filter((a) => a.mailId !== mailId));
   }
 
   return (
@@ -62,7 +41,7 @@ export function OtpPopup({ inboxes }: { inboxes: Inbox[] }) {
             <button
               type="button"
               className="shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={() => dismiss(arrival.mailId)}
+              onClick={() => onDismiss(arrival.mailId)}
               title="Dismiss"
             >
               <XIcon className="size-3" />

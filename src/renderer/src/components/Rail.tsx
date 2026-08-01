@@ -1,4 +1,5 @@
 import {
+  KeyRoundIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PauseIcon,
@@ -58,6 +59,7 @@ export function Rail({
   mirrorPicking,
   onToggleFollower,
   onToggleFollowerPause,
+  otpBadges,
 }: {
   /** Per-follower health: synced | drifted | missed | paused. */
   mirrorStatus: Record<string, FollowerStatus>;
@@ -76,6 +78,8 @@ export function Rail({
   mirrorFollowers: string[];
   mirrorPicking: boolean;
   onToggleFollower: (address: string) => void;
+  /** Inboxes holding a code that arrived while you were elsewhere. */
+  otpBadges: Record<string, { code: string }>;
 }) {
   return (
     <aside
@@ -109,6 +113,7 @@ export function Rail({
           const isLeader = mirrorPicking ? active : inbox.address === mirrorLeader;
           const isFollower = mirrorFollowers.includes(inbox.address);
           const status = mirrorStatus[inbox.address];
+          const otp = otpBadges[inbox.address];
           // Ring tells the story at a glance: sky drives, white follows,
           // amber wandered off, red didn't take the last action.
           const ring = isLeader
@@ -141,10 +146,19 @@ export function Rail({
             >
               <Avatar inbox={inbox} active={active} />
               {collapsed ? (
-                inbox.unread > 0 && (
+                otp ? (
+                  <span
+                    title={`Code waiting: ${otp.code}`}
+                    className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-sky-500 text-primary-foreground"
+                  >
+                    <KeyRoundIcon className="size-2.5" />
+                  </span>
+                ) : (
+                  inbox.unread > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                     {inbox.unread > 9 ? '9+' : inbox.unread}
                   </span>
+                  )
                 )
               ) : (
                 <>
@@ -174,6 +188,15 @@ export function Rail({
                       )}
                     </span>
                   )}
+                  {otp && (
+                    <span
+                      title="Code arrived here — open this inbox to use it"
+                      className="flex shrink-0 items-center gap-1 rounded bg-sky-500/15 px-1.5 py-0.5 font-mono text-xs font-semibold text-sky-400"
+                    >
+                      <KeyRoundIcon className="size-3" />
+                      {otp.code}
+                    </span>
+                  )}
                   {inbox.unread > 0 && <Badge>{inbox.unread}</Badge>}
                 </>
               )}
@@ -184,6 +207,7 @@ export function Rail({
               <TooltipTrigger render={button} />
               <TooltipContent side="right">
                 {inbox.displayName || inbox.address}
+                {otp ? ` — code ${otp.code}` : ''}
                 {inbox.unread > 0 ? ` — ${inbox.unread} unread` : ''}
                 {isLeader ? ' — controlling' : isFollower ? ` — ${statusLabel(status ?? 'synced')}` : ''}
               </TooltipContent>

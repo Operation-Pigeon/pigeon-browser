@@ -11,6 +11,7 @@ import { SavePasswordPrompt } from './components/SavePasswordPrompt';
 import { SettingsOverlay } from './components/SettingsOverlay';
 import { TabStrip } from './components/TabStrip';
 import { usePolling } from './lib/usePolling';
+import { useOtpArrivals } from './lib/useOtpArrivals';
 
 const RAIL_COLLAPSED = 56;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -192,10 +193,19 @@ export default function App() {
   // Dragging a splitter needs the page out of the way for the whole drag.
   const hideContent = () => void window.bridge.tabs.setOverlay('resize', true);
 
+  const activeProfile = browser?.activeProfile ?? null;
+
+  // Above the early returns: hooks can't run conditionally.
+  const {
+    popups: otpPopups,
+    badges: otpBadges,
+    dismissPopup: dismissOtp,
+    clearBadge: clearOtpBadge,
+  } = useOtpArrivals(inboxes, activeProfile);
+
   if (keyed === null) return null;
   if (!keyed) return <KeySetup onDone={() => setKeyed(true)} />;
 
-  const activeProfile = browser?.activeProfile ?? null;
   const profileTabs = activeProfile ? browser?.profiles[activeProfile] : undefined;
 
   return (
@@ -213,7 +223,12 @@ export default function App() {
         collapsed={railCollapsed}
         width={railWidth}
         onToggleCollapsed={toggleRail}
-        onSelect={(address) => void window.bridge.tabs.setProfile(address)}
+        onSelect={(address) => {
+          // Opening the inbox is the answer to its badge.
+          clearOtpBadge(address);
+          void window.bridge.tabs.setProfile(address);
+        }}
+        otpBadges={otpBadges}
         onOpenSettings={() => setSettingsOpenAndContent(true)}
         mirrorLeader={mirror.leader}
         mirrorFollowers={mirrorPicking ? mirrorSelection : mirror.followers}
@@ -264,7 +279,7 @@ export default function App() {
       />
       {!railCollapsed && <ResizeHandle onStart={hideContent} onDrag={railDrag} onDone={railDone} />}
       {settingsOpen && <SettingsOverlay onClose={() => setSettingsOpenAndContent(false)} />}
-      <OtpPopup inboxes={inboxes} />
+      <OtpPopup arrivals={otpPopups} onDismiss={dismissOtp} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div ref={topRef} className="shrink-0">
         <TabStrip
