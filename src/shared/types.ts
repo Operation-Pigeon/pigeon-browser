@@ -1,5 +1,15 @@
 /** Shared between main, preload, and renderer. Pigeon API shapes mirror the service. */
 
+/**
+ * The API refused the key.
+ *
+ * Crosses IPC as an error message, because that is all an IPC error is by the
+ * time the renderer sees it. Worth a named constant anyway: the renderer acts
+ * on this one — it is the difference between "the network hiccuped" and "this
+ * key will never work again", and only the second should ask for a new one.
+ */
+export const KEY_REJECTED = 'pigeon:key-rejected';
+
 export interface Identity {
   email: string;
   name: string;

@@ -10,6 +10,30 @@ form that wants them.
 Talks to the Pigeon API only (`api.mailpigeon.vip`) — the webapp is just
 another website it can browse to.
 
+## The API client
+
+`@operation-pigeon/client` is **generated** from the Smithy model in the
+`pigeon` repo and published to GitHub Packages. Nothing here hand-writes a
+request.
+
+That is not a style preference. The client this replaced was hand-written
+against v0, and when the API moved to v1 it went on sending `x-api-key` to
+unversioned paths: every call answered `401`, the app was unusable, and
+nothing in the codebase disagreed with itself. The same drift is now a
+compile error.
+
+Installing it needs a token with `read:packages`:
+
+```sh
+export NODE_AUTH_TOKEN=$(gh auth token)
+npm install
+```
+
+`src/main/pigeonApi.ts` maps the generated shapes onto this app's own
+vocabulary — `MailSummary`, `OtpHit`, and inbox **addresses** rather than ids,
+because every session, tab, saved password and history row is keyed by
+address.
+
 ## Run
 
 ```sh

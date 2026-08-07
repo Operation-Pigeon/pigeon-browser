@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BrowserState, Inbox, MirrorState } from '../../shared/types';
+import { KEY_REJECTED, type BrowserState, type Inbox, type MirrorState } from '../../shared/types';
 import { HistoryPanel } from './components/HistoryPanel';
 import { KeySetup } from './components/KeySetup';
 import { MirrorControls } from './components/MirrorControls';
@@ -126,7 +126,15 @@ export default function App() {
     window.bridge.pigeon
       .inboxes()
       .then((r) => setInboxes((r as { inboxes: Inbox[] }).inboxes))
-      .catch(() => setInboxes([]));
+      .catch((error: unknown) => {
+        setInboxes([]);
+        // A refused key is not a failed request to shrug at. Every key minted
+        // against v0 is refused by v1, so without this the first launch after
+        // the migration is an empty rail with the fix buried in Settings.
+        // Anything else — a blip, a 500 — leaves the key alone and retries on
+        // the next poll.
+        if (String(error).includes(KEY_REJECTED)) setKeyed(false);
+      });
   }, []);
 
   useEffect(() => {

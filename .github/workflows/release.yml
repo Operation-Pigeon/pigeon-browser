@@ -1,7 +1,10 @@
 name: release
 
 # Tag vX.Y.Z (or run manually) -> Windows installer attached to a GitHub
-# Release by electron-builder. No secrets needed beyond the workflow token.
+# Release by electron-builder. No secrets needed beyond the workflow token —
+# which now also has to fetch the generated API client from GitHub Packages,
+# so the install step needs `packages: read` and a registry to authenticate
+# against.
 on:
   push:
     tags: ['v*']
@@ -9,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   build:
@@ -19,8 +23,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          registry-url: https://npm.pkg.github.com
 
+      # `@operation-pigeon/client` is generated from the Smithy model and
+      # published privately, so this fails without a token — loudly, at
+      # install, rather than by building against something stale.
       - run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: npm run typecheck
 
