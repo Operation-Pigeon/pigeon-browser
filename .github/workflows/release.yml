@@ -57,12 +57,31 @@ jobs:
       # A release without the installer and latest.yml is worse than no
       # release: the updater reads latest.yml, so a partial upload silently
       # strands every installed copy on the old version.
+      # The tag and package.json must agree, and this is where that is cheap to
+      # find out. electron-builder names the release from package.json, not
+      # from the tag: v0.6.0 built from a tree still saying 0.5.0 targeted the
+      # *old* release, found it published more than two hours ago, and skipped
+      # uploading — leaving an empty release that the updater then reads as the
+      # latest, stranding every installed copy.
+      - name: The tag must match the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          $tag = "$env:GITHUB_REF_NAME" -replace '^v', ''
+          Write-Host "package.json $version, tag $tag"
+          if ($version -ne $tag) { throw "package.json is $version but the tag is $tag" }
+
       - name: Verify the published assets
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          $assets = gh release view "$env:GITHUB_REF_NAME" --json assets --jq '.assets[].name'
-          Write-Host "assets: $assets"
-          if ($assets -notmatch 'latest\.yml') { throw "latest.yml missing - auto-update would break" }
-          if ($assets -notmatch '\.exe($|\s)') { throw "installer missing" }
+          $assets = @(gh release view "$env:GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          Write-Host "assets: $($assets -join ', ')"
+          # Counted first, and this is the case that got through: an empty
+          # array `-notmatch` anything is an empty array, which is falsy, so
+          # both guards below passed a release with nothing in it at all —
+          # the exact failure they exist to catch.
+          if ($assets.Count -eq 0) { throw "no assets published - the release is empty" }
+          if (-not ($assets -match 'latest\.yml')) { throw "latest.yml missing - auto-update would break" }
+          if (-not ($assets -match '\.exe($|\s)')) { throw "installer missing" }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
