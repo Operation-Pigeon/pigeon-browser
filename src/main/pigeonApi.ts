@@ -119,11 +119,11 @@ export const pigeon = {
     setApiKey(key);
   },
 
-  async me(): Promise<{ tenantId: string; name: string; admin: boolean }> {
+  async me(): Promise<{ workspaceId: string; name: string; admin: boolean }> {
     const me = await run(() => api().getMe({}));
     return {
-      tenantId: me.tenant.id,
-      name: me.tenant.name,
+      workspaceId: me.workspace.id,
+      name: me.workspace.name,
       // v1 answers with scopes rather than a flag. Nothing in this app gates
       // on it yet, so the question it used to ask is answered honestly here
       // rather than dropped and rediscovered later.

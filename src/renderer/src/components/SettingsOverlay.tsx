@@ -56,7 +56,7 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-medium">Pigeon API key</h2>
             <p className="text-xs text-muted-foreground">
-              Stored encrypted on this machine. Paste a new tenant key to replace it.
+              Stored encrypted on this machine. Paste a new workspace key to replace it.
             </p>
             <div className="flex gap-2">
               <Input
