@@ -1,6 +1,6 @@
 {
   "name": "pigeon-browser",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "main": "out/main/index.js",
   "scripts": {
@@ -18,13 +18,14 @@
     "files": [
       "out/**",
       "build/icon.png",
+      "build/icon.ico",
       "package.json"
     ],
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": true,

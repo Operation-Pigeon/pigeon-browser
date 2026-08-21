@@ -36,9 +36,16 @@ function createWindow(): void {
       symbolColor: '#d4d4d4',
       height: 40,
     },
-    // Dev-mode taskbar icon; packaged builds get it baked into the exe by
-    // electron-builder from the same file.
-    icon: nativeImage.createFromPath(join(app.getAppPath(), 'build/icon.png')),
+    // Windows gets the .ico **as a path**, not as a NativeImage. The file
+    // carries seven bitmaps, 16 through 256, and the taskbar wants one of the
+    // small ones — but `nativeImage.createFromPath` flattens an .ico to its
+    // largest representation, so handing it one throws away the very sizes it
+    // was made for. A path goes to the platform's own ICO loader, which keeps
+    // them. Elsewhere the PNG is the only thing there is.
+    icon:
+      process.platform === 'win32'
+        ? join(app.getAppPath(), 'build/icon.ico')
+        : nativeImage.createFromPath(join(app.getAppPath(), 'build/icon.png')),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
     },
@@ -93,6 +100,13 @@ process.on('uncaughtException', (err) => {
 });
 
 app.whenReady().then(() => {
+  // Windows identifies a running window by its AppUserModelID, and the Start
+  // Menu shortcut NSIS writes carries `vip.mailpigeon.browser`. Without this
+  // the window declares a different one, so Windows never associates the two
+  // — which is what breaks pinning, taskbar grouping and the icon that comes
+  // with them. It has to be set before any window exists.
+  if (process.platform === 'win32') app.setAppUserModelId('vip.mailpigeon.browser');
+
   // Tab commands — thin pass-throughs; TabManager owns all state.
   // Initial value for pollers — focus events only fire on change, so a
   // renderer that loads while unfocused would otherwise assume it's focused.
