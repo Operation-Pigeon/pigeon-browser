@@ -28,6 +28,21 @@ import { KEY_REJECTED, type Inbox, type MailDetail, type MailSummary, type OtpHi
  */
 const BASE = process.env.PIGEON_API_URL ?? 'https://api.mailpigeon.vip';
 
+/**
+ * The workspace this key acts in, learned once.
+ *
+ * Every business route names one. A key belongs to exactly one, so the app
+ * never has to choose — but it does have to ask, because the workspace is no
+ * longer something the credential carries into the request by itself.
+ */
+let workspaceId: string | null = null;
+
+async function workspace(): Promise<string> {
+  if (!workspaceId) await pigeon.me();
+  if (!workspaceId) throw new Error(KEY_REJECTED);
+  return workspaceId;
+}
+
 function api(key = getApiKey()): DefaultApi {
   if (!key) throw new Error('no API key configured');
   // The scheme changed with v1: `Authorization: Bearer`, not `x-api-key`.
@@ -66,6 +81,37 @@ async function run<T>(work: () => Promise<T>): Promise<T> {
  * ago should not need a restart to appear.
  */
 const ids = new Map<string, string>();
+
+/**
+ * Which inbox each message lives in.
+ *
+ * Every route to a message names its inbox now — a message id is not a
+ * permission, and the inbox is what carries the grant. The app addresses mail
+ * by id alone, through an IPC surface that reaches the renderer, so rather
+ * than rewriting three layers to thread an inbox through, the answer is
+ * remembered here.
+ *
+ * Filled from the two places a message id can reach this app: listing an
+ * inbox, and the OTP snapshot on an inbox row. Both name their inbox, and the
+ * second is why the popup still works after a restart — `inboxes()` runs at
+ * launch and repopulates it.
+ */
+const messageInbox = new Map<string, string>();
+
+/**
+ * The inbox a message belongs to, or an error that says what to do.
+ *
+ * Guessing is not available: there is no unscoped route to a message, which
+ * is the point. An id nobody has seen means the inbox holding it was never
+ * opened, and saying so beats a 404 that reads as the mail having vanished.
+ */
+function inboxOf(messageId: string): string {
+  const known = messageInbox.get(messageId);
+  if (!known) {
+    throw new Error(`unknown inbox for message ${messageId} — open the inbox first`);
+  }
+  return known;
+}
 
 async function inboxId(address: string): Promise<string> {
   const known = ids.get(address);
@@ -112,7 +158,7 @@ export const pigeon = {
   /** Validates against /me before persisting — a bad paste never sticks. */
   async saveKey(key: string): Promise<void> {
     try {
-      await api(key).getMe({});
+      await api(key).getMe();
     } catch {
       throw new Error('key rejected by the API');
     }
@@ -120,22 +166,38 @@ export const pigeon = {
   },
 
   async me(): Promise<{ workspaceId: string; name: string; admin: boolean }> {
-    const me = await run(() => api().getMe({}));
+    // `/me` describes the principal now and names no workspace — a person can
+    // belong to several. A key belongs to exactly one, so this asks which,
+    // and the answer is the workspace every other call is addressed under.
+    const listed = await run(() => api().listMyWorkspaces({ limit: 1 }));
+    const mine = listed.data[0]?.workspace;
+
+    if (!mine) {
+      // Authenticated and able to reach nothing: a key whose grants were
+      // removed, or one that never had any.
+      throw new Error(KEY_REJECTED);
+    }
+
+    workspaceId = mine.id;
     return {
-      workspaceId: me.workspace.id,
-      name: me.workspace.name,
-      // v1 answers with scopes rather than a flag. Nothing in this app gates
-      // on it yet, so the question it used to ask is answered honestly here
-      // rather than dropped and rediscovered later.
-      admin: me.scopes.includes('admin'),
+      workspaceId: mine.id,
+      name: mine.name,
+      // There is no such thing as an admin flag on a key. What a key may do
+      // is its grants, resource by resource, and nothing in this app gates on
+      // the answer — so it stops claiming to know one.
+      admin: false,
     };
   },
 
   async inboxes(): Promise<{ inboxes: Inbox[] }> {
-    const listed = await run(() => api().listInboxes({ limit: 100 }));
+    const workspaceId = await workspace();
+    const listed = await run(() => api().listInboxes({ workspaceId, limit: 100 }));
 
     const inboxes = listed.data.map((inbox: InboxData) => {
       ids.set(inbox.address, inbox.id);
+      // So the OTP popup can open a message without the inbox having been
+      // browsed — which is the whole point of the popup.
+      if (inbox.lastOtp) messageInbox.set(inbox.lastOtp.messageId, inbox.id);
       return {
         address: inbox.address,
         displayName: inbox.displayName,
@@ -163,7 +225,12 @@ export const pigeon = {
 
   async mail(address: string): Promise<{ emails: MailSummary[] }> {
     const inbox = await inboxId(address);
-    const listed = await run(() => api().listMessages({ inbox, limit: 25 }));
+    const workspaceId = await workspace();
+    const listed = await run(() =>
+      api().listMessages({ workspaceId, inboxId: inbox, limit: 25 }),
+    );
+
+    for (const message of listed.data) messageInbox.set(message.id, inbox);
     return { emails: listed.data.map(summary) };
   },
 
@@ -179,10 +246,17 @@ export const pigeon = {
    * stop the mail being shown.
    */
   async mailDetail(id: string): Promise<MailDetail> {
-    const { message } = await run(() => api().getMessage({ messageId: id }));
+    const inbox = inboxOf(id);
+    const workspaceId = await workspace();
+    const { message } = await run(() => api().getMessage({ workspaceId, inboxId: inbox, messageId: id }));
 
     void api()
-      .updateMessage({ messageId: id, updateMessageRequestContent: { read: true } })
+      .updateMessage({
+        workspaceId,
+        inboxId: inbox,
+        messageId: id,
+        updateMessageRequestContent: { read: true },
+      })
       .catch(() => {});
 
     return {
@@ -212,16 +286,29 @@ export const pigeon = {
    * told there is nothing.
    */
   async mailHtml(id: string): Promise<{ html: string }> {
-    const { html } = await run(() => api().getMessageHtml({ messageId: id }));
+    const workspaceId = await workspace();
+    const { html } = await run(() =>
+      api().getMessageHtml({ workspaceId, inboxId: inboxOf(id), messageId: id }),
+    );
     return { html: html ?? '' };
   },
 
   markRead: async (id: string): Promise<void> => {
-    await api().updateMessage({ messageId: id, updateMessageRequestContent: { read: true } });
+    await api().updateMessage({
+      workspaceId: await workspace(),
+      inboxId: inboxOf(id),
+      messageId: id,
+      updateMessageRequestContent: { read: true },
+    });
   },
 
   markUnread: async (id: string): Promise<void> => {
-    await api().updateMessage({ messageId: id, updateMessageRequestContent: { read: false } });
+    await api().updateMessage({
+      workspaceId: await workspace(),
+      inboxId: inboxOf(id),
+      messageId: id,
+      updateMessageRequestContent: { read: false },
+    });
   },
 
   /**
@@ -234,6 +321,8 @@ export const pigeon = {
    */
   deleteMail: async (id: string): Promise<void> => {
     await api().updateMessage({
+      workspaceId: await workspace(),
+      inboxId: inboxOf(id),
       messageId: id,
       updateMessageRequestContent: { state: MessageState.Trashed },
     });
