@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KEY_REJECTED, type BrowserState, type Inbox, type MirrorState } from '../../shared/types';
+import {
+  KEY_REJECTED,
+  type BrowserState,
+  type ExitCountry,
+  type ExitState,
+  type Inbox,
+  type MirrorState,
+} from '../../shared/types';
 import { HistoryPanel } from './components/HistoryPanel';
 import { KeySetup } from './components/KeySetup';
 import { MirrorControls } from './components/MirrorControls';
@@ -74,6 +81,11 @@ export default function App() {
     paused: false,
     status: {},
   });
+  const [exitStates, setExits] = useState<Record<string, ExitState>>({});
+  const [exitCountries, setExitCountries] = useState<ExitCountry[]>([]);
+  // The rail's tunnel control is inert until setup in Settings is finished
+  // and funded, so it says so rather than failing silently when clicked.
+  const [tunnelsReady, setTunnelsReady] = useState(false);
   const [mirrorPicking, setMirrorPicking] = useState(false);
   const [mirrorSelection, setMirrorSelection] = useState<string[]>([]);
   const topRef = useRef<HTMLDivElement>(null);
@@ -81,6 +93,23 @@ export default function App() {
   useEffect(() => {
     void window.bridge.mirror.state().then(setMirror);
     return window.bridge.mirror.onState(setMirror);
+  }, []);
+
+  useEffect(() => {
+    void window.bridge.exits.state().then(setExits);
+    return window.bridge.exits.onState(setExits);
+  }, []);
+
+  // Which countries have residential nodes right now. Refreshed on setup
+  // changes because the list is empty until the control node is up.
+  useEffect(() => {
+    const load = () => void window.bridge.exits.countries().then(setExitCountries).catch(() => {});
+    load();
+    void window.bridge.exits.setup().then((s) => setTunnelsReady(s.stage === 'ready'));
+    return window.bridge.exits.onSetup((s) => {
+      setTunnelsReady(s.stage === 'ready');
+      load();
+    });
   }, []);
 
   // The mirror bar changes the chrome's height; main positions the native
@@ -237,6 +266,9 @@ export default function App() {
           void window.bridge.tabs.setProfile(address);
         }}
         otpBadges={otpBadges}
+        exitStates={exitStates}
+        exitCountries={exitCountries}
+        tunnelsReady={tunnelsReady}
         onOpenSettings={() => setSettingsOpenAndContent(true)}
         mirrorLeader={mirror.leader}
         mirrorFollowers={mirrorPicking ? mirrorSelection : mirror.followers}
