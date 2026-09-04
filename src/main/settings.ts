@@ -23,6 +23,19 @@ interface SettingsFile {
    * undoes itself a few seconds after it happens.
    */
   mystUnlinked?: boolean;
+  /**
+   * Whether the Fill panel may put invented details on a page. Off is a hard
+   * stop rather than a hidden button: the main process refuses too, so a
+   * stale renderer cannot fill anyway.
+   */
+  personaFill?: boolean;
+  /**
+   * Colour label per inbox, used to group the rail. Absent means unlabelled,
+   * which is a group of its own rather than a colour.
+   */
+  inboxColors?: Record<string, string>;
+  /** Colour groups the user has folded away. Survives a restart on purpose.  */
+  collapsedGroups?: string[];
 }
 
 const file = () => join(app.getPath('userData'), 'pigeon-settings.json');
@@ -99,6 +112,15 @@ export function getMystPassphrase(): string {
   return fresh;
 }
 
+export function getPersonaFill(): boolean {
+  return load().personaFill ?? true;
+}
+
+export function setPersonaFill(value: boolean): void {
+  load().personaFill = value;
+  persist();
+}
+
 export function getMystUnlinked(): boolean {
   return load().mystUnlinked ?? false;
 }
@@ -107,6 +129,67 @@ export function setMystUnlinked(value: boolean): void {
   load().mystUnlinked = value;
   persist();
 }
+
+export function getInboxColors(): Record<string, string> {
+  return load().inboxColors ?? {};
+}
+
+/** Passing null clears the label, which is how an inbox leaves a group. */
+export function setInboxColor(profile: string, color: string | null): void {
+  const all = load();
+  all.inboxColors = all.inboxColors ?? {};
+  if (color) all.inboxColors[profile] = color;
+  else delete all.inboxColors[profile];
+  persist();
+}
+
+export function getCollapsedGroups(): string[] {
+  return load().collapsedGroups ?? [];
+}
+
+export function setGroupCollapsed(color: string, collapsed: boolean): void {
+  const all = load();
+  const set = new Set(all.collapsedGroups ?? []);
+  if (collapsed) set.add(color);
+  else set.delete(color);
+  all.collapsedGroups = [...set];
+  persist();
+}
+
+/**
+ * Forgets settings for inboxes that no longer exist.
+ *
+ * Takes the full list rather than a delete-one call, because the app only
+ * ever learns about deletions by noticing an address stopped appearing.
+ * Returns what it dropped so the caller can stop anything still running for
+ * those inboxes.
+ *
+ * Refuses an empty list. A failed API call also looks like "no inboxes", and
+ * treating that as "delete everything" would wipe every colour, persona and
+ * tunnel preference over one bad request.
+ */
+export function pruneUnknownInboxes(known: string[]): string[] {
+  if (!known.length) return [];
+  const alive = new Set(known);
+  const all = load();
+  const dropped = new Set<string>();
+
+  for (const address of Object.keys(all.inboxColors ?? {})) {
+    if (!alive.has(address)) {
+      delete all.inboxColors![address];
+      dropped.add(address);
+    }
+  }
+  for (const address of Object.keys(all.exits ?? {})) {
+    if (!alive.has(address)) {
+      delete all.exits![address];
+      dropped.add(address);
+    }
+  }
+  if (dropped.size) persist();
+  return [...dropped];
+}
+
 
 export function getExitPrefs(): Record<string, { country: string }> {
   return load().exits ?? {};

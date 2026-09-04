@@ -7,6 +7,7 @@ import {
   type Inbox,
   type MirrorState,
 } from '../../shared/types';
+import { FillPanel } from './components/FillPanel';
 import { HistoryPanel } from './components/HistoryPanel';
 import { KeySetup } from './components/KeySetup';
 import { MirrorControls } from './components/MirrorControls';
@@ -74,7 +75,9 @@ export default function App() {
   const panelWidthRef = useRef(panelWidth);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // One right bar at a time.
-  const [rightPanel, setRightPanel] = useState<'mail' | 'passwords' | 'history' | null>(null);
+  const [rightPanel, setRightPanel] = useState<
+    'mail' | 'passwords' | 'history' | 'fill' | null
+  >(null);
   const [mirror, setMirror] = useState<MirrorState>({
     leader: null,
     followers: [],
@@ -86,6 +89,15 @@ export default function App() {
   // The rail's tunnel control is inert until setup in Settings is finished
   // and funded, so it says so rather than failing silently when clicked.
   const [tunnelsReady, setTunnelsReady] = useState(false);
+  const [inboxColors, setInboxColors] = useState<Record<string, string>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+
+  // Rail grouping lives in main so it survives a restart. Loaded once here;
+  // the writes below keep this copy in step rather than re-reading.
+  useEffect(() => {
+    void window.bridge.settings.colors().then(setInboxColors);
+    void window.bridge.settings.collapsed().then(setCollapsedGroups);
+  }, []);
   const [mirrorPicking, setMirrorPicking] = useState(false);
   const [mirrorSelection, setMirrorSelection] = useState<string[]>([]);
   const topRef = useRef<HTMLDivElement>(null);
@@ -195,6 +207,24 @@ export default function App() {
     if (browser?.activeProfile) localStorage.setItem('lastProfile', browser.activeProfile);
   }, [browser?.activeProfile]);
 
+  // Forget colours, personas and tunnel preferences for inboxes that are
+  // gone. Only on a non-empty list: a failed request also looks like "no
+  // inboxes", and acting on that would delete everything over one blip.
+  useEffect(() => {
+    if (!inboxes.length) return;
+    void window.bridge.settings
+      .prune(inboxes.map((i) => i.address))
+      .then((dropped) => {
+        if (!dropped.length) return;
+        setInboxColors((c) => {
+          const next = { ...c };
+          for (const address of dropped) delete next[address];
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [inboxes]);
+
   function toggleRail() {
     const next = !railCollapsed;
     setRailCollapsed(next);
@@ -269,6 +299,27 @@ export default function App() {
         exitStates={exitStates}
         exitCountries={exitCountries}
         tunnelsReady={tunnelsReady}
+        inboxColors={inboxColors}
+        collapsedGroups={collapsedGroups}
+        onSetColor={(address, color) => {
+          setInboxColors((c) => {
+            const next = { ...c };
+            if (color) next[address] = color;
+            else delete next[address];
+            return next;
+          });
+          void window.bridge.settings.setColor(address, color);
+        }}
+        onGroupTunnel={(addresses, country) => {
+          if (country) void window.bridge.exits.enableMany(addresses, country);
+          else void window.bridge.exits.disableMany(addresses);
+        }}
+        onToggleGroup={(color, isCollapsed) => {
+          setCollapsedGroups((g) =>
+            isCollapsed ? [...new Set([...g, color])] : g.filter((c) => c !== color),
+          );
+          void window.bridge.settings.setCollapsed(color, isCollapsed);
+        }}
         onOpenSettings={() => setSettingsOpenAndContent(true)}
         mirrorLeader={mirror.leader}
         mirrorFollowers={mirrorPicking ? mirrorSelection : mirror.followers}
@@ -348,6 +399,7 @@ export default function App() {
             <>
               <ResizeHandle onStart={hideContent} onDrag={panelDrag} onDone={panelDone} />
               {rightPanel === 'mail' && <MailPanel address={activeProfile} width={panelWidth} />}
+              {rightPanel === 'fill' && <FillPanel address={activeProfile} width={panelWidth} />}
               {rightPanel === 'passwords' && (
                 <PasswordPanel address={activeProfile} width={panelWidth} />
               )}
