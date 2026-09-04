@@ -1,0 +1,65 @@
+{
+  "_comment": [
+    "Copy to the app's userData directory as identities.json, or point at it",
+    "with PIGEON_IDENTITIES for a test run. Never commit the real one — it",
+    "holds proxy credentials.",
+    "",
+    "No file at all means every inbox goes out direct, as before.",
+    "",
+    "Keep timezone and locale consistent with where the exit actually is: a",
+    "London address reporting America/New_York is a bigger tell than no proxy."
+  ],
+
+  "coop@mailpigeon.vip": {
+    "proxy": "http://127.0.0.1:1081",
+    "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "uaMetadata": {
+      "platform": "Windows",
+      "platformVersion": "15.0.0",
+      "architecture": "x86",
+      "model": "",
+      "mobile": false,
+      "brands": [
+        { "brand": "Chromium", "version": "131" },
+        { "brand": "Google Chrome", "version": "131" }
+      ]
+    },
+    "acceptLanguage": "en-GB,en;q=0.9",
+    "locale": "en-GB",
+    "timezone": "Europe/London",
+    "viewport": { "width": 1920, "height": 1080, "dpr": 1 },
+    "expectCountry": "GB"
+  },
+
+  "wren@mailpigeon.vip": {
+    "proxy": "http://127.0.0.1:1082",
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "uaMetadata": {
+      "platform": "macOS",
+      "platformVersion": "14.6.0",
+      "architecture": "arm",
+      "model": "",
+      "mobile": false,
+      "brands": [
+        { "brand": "Chromium", "version": "131" },
+        { "brand": "Google Chrome", "version": "131" }
+      ]
+    },
+    "acceptLanguage": "de-DE,de;q=0.9,en;q=0.8",
+    "locale": "de-DE",
+    "timezone": "Europe/Berlin",
+    "viewport": { "width": 1512, "height": 945, "dpr": 2 },
+    "expectCountry": "DE"
+  },
+
+  "_rotating_example": {
+    "_note": "Pay-per-GB pool: one gateway, the username picks the exit.",
+    "proxy": "http://gate.provider.com:8000",
+    "rotation": {
+      "usernameTemplate": "customer-acme-cc-GB-sessid-{session}-sesstime-30",
+      "password": "..."
+    },
+    "timezone": "Europe/London",
+    "locale": "en-GB"
+  }
+}

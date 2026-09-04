@@ -2,7 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type {
   Bookmark,
   BrowserState,
+  ExitCountry,
+  ExitState,
   HistoryEntry,
+  MystSetup,
   MirrorState,
   PendingCredential,
   SavedPassword,
@@ -115,6 +118,41 @@ const api = {
       }>,
     setAutoSave: (value: boolean) => ipcRenderer.invoke('settings:setAutoSave', value),
     setShareHistory: (value: boolean) => ipcRenderer.invoke('settings:setShareHistory', value),
+  },
+  exits: {
+    state: () => ipcRenderer.invoke('exits:state') as Promise<Record<string, ExitState>>,
+    setup: () => ipcRenderer.invoke('exits:setup') as Promise<MystSetup>,
+    refresh: () => ipcRenderer.invoke('exits:refresh') as Promise<MystSetup>,
+    install: () =>
+      ipcRenderer.invoke('exits:install') as Promise<{ ok: boolean; error?: string }>,
+    useBinary: (path: string) => ipcRenderer.invoke('exits:useBinary', path) as Promise<void>,
+    createIdentity: () => ipcRenderer.invoke('exits:createIdentity') as Promise<void>,
+    importIdentity: (path: string, passphrase: string) =>
+      ipcRenderer.invoke('exits:importIdentity', path, passphrase) as Promise<{
+        ok: boolean;
+        error?: string;
+      }>,
+    register: () => ipcRenderer.invoke('exits:register') as Promise<void>,
+    countries: () => ipcRenderer.invoke('exits:countries') as Promise<ExitCountry[]>,
+    enable: (profile: string, country: string) =>
+      ipcRenderer.invoke('exits:enable', profile, country) as Promise<void>,
+    disable: (profile: string) => ipcRenderer.invoke('exits:disable', profile) as Promise<void>,
+    signOut: (wipe: boolean) => ipcRenderer.invoke('exits:signOut', wipe) as Promise<void>,
+    relink: () => ipcRenderer.invoke('exits:relink') as Promise<void>,
+    onState: (cb: (s: Record<string, ExitState>) => void): (() => void) => {
+      const listener = (_e: unknown, s: Record<string, ExitState>) => cb(s);
+      ipcRenderer.on('exits:state', listener);
+      return () => {
+        ipcRenderer.removeListener('exits:state', listener);
+      };
+    },
+    onSetup: (cb: (s: MystSetup) => void): (() => void) => {
+      const listener = (_e: unknown, s: MystSetup) => cb(s);
+      ipcRenderer.on('exits:setup', listener);
+      return () => {
+        ipcRenderer.removeListener('exits:setup', listener);
+      };
+    },
   },
   pigeon: {
     hasKey: () => ipcRenderer.invoke('pigeon:hasKey') as Promise<boolean>,

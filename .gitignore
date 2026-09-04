@@ -2,3 +2,6 @@ node_modules/
 out/
 dist/
 .idea/
+identities.json
+.myst/
+exits.config.json

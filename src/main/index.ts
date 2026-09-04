@@ -13,6 +13,21 @@ import {
   setShareHistorySuggestions,
 } from './settings';
 import { startUpdater } from './updater';
+import { proxyPassword, proxyUsername } from './identities';
+import { exits } from './exits';
+
+/**
+ * A packaged asset as a real file on disk.
+ *
+ * Packed assets live inside app.asar, and the Windows icon loader is native
+ * code that knows nothing about asar archives: handed a path inside one it
+ * fails silently and the window gets no icon at all. `asarUnpack` in
+ * package.json keeps a genuine copy beside the archive, and this points at
+ * it. In development there is no asar and the replace does nothing.
+ */
+function assetPath(relative: string): string {
+  return join(app.getAppPath(), relative).replace('app.asar', 'app.asar.unpacked');
+}
 
 /** Capture waiting on a save prompt (auto-save off). Cleared on answer. */
 let pendingCredential: { profile: string; origin: string; username: string; password: string } | null =
@@ -44,13 +59,16 @@ function createWindow(): void {
     // them. Elsewhere the PNG is the only thing there is.
     icon:
       process.platform === 'win32'
-        ? join(app.getAppPath(), 'build/icon.ico')
-        : nativeImage.createFromPath(join(app.getAppPath(), 'build/icon.png')),
+        ? assetPath('build/icon.ico')
+        : nativeImage.createFromPath(assetPath('build/icon.png')),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
     },
   });
   win.setMenuBarVisibility(false);
+  // The constructor's `icon` is not always honoured on Windows once the
+  // window is up; setting it again afterwards is what actually sticks.
+  if (process.platform === 'win32') win.setIcon(assetPath('build/icon.ico'));
 
   // Window-level focus, not DOM focus: clicking into a tab moves DOM focus to
   // that WebContentsView and blurs the chrome, though the user is plainly
@@ -67,6 +85,7 @@ function createWindow(): void {
 
   tabs = new TabManager(win);
   bookmarks.init(win);
+  void exits.init(win);
   startUpdater(win);
 
   // Mail-panel links (sandboxed iframes firing window.open) become tabs in
@@ -89,6 +108,19 @@ function createWindow(): void {
   }
 }
 
+// Opt-in debugging port, for driving the app from a test script the way a
+// person drives it: same IPC, same renderer, no mocks. Off unless asked for,
+// and the switch has to be set before the app is ready.
+if (process.env['PIGEON_DEBUG_PORT']) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env['PIGEON_DEBUG_PORT']);
+}
+
+// Async work started with `void` reports failures here, not as an exception.
+// Without this an exit node that fails to start does so in total silence.
+process.on('unhandledRejection', (reason) => {
+  console.error('main unhandled rejection:', reason);
+});
+
 // A browser shouldn't die because one page interaction threw somewhere in
 // main. Log it, tell the chrome, keep running — the default dialog kills the
 // app mid-session and loses every tab.
@@ -99,13 +131,35 @@ process.on('uncaughtException', (err) => {
   }
 });
 
+// Proxy credentials, keyed off the tab's own inbox — the same rule the rest
+// of this file follows: the sender decides, never the payload. Fires for HTTP
+// and HTTPS proxies only; Chromium's SOCKS5 client supports no authentication
+// method, so a socks5:// endpoint wanting a password fails here in silence.
+app.on('login', (event, wc, _details, authInfo, callback) => {
+  if (!authInfo.isProxy) return;
+  const profile = tabs?.profileFor(wc);
+  if (!profile) return;
+  const username = proxyUsername(profile);
+  const password = proxyPassword(profile);
+  if (!username || !password) return;
+  event.preventDefault();
+  callback(username, password);
+});
+
 app.whenReady().then(() => {
   // Windows identifies a running window by its AppUserModelID, and the Start
   // Menu shortcut NSIS writes carries `vip.mailpigeon.browser`. Without this
   // the window declares a different one, so Windows never associates the two
   // — which is what breaks pinning, taskbar grouping and the icon that comes
   // with them. It has to be set before any window exists.
-  if (process.platform === 'win32') app.setAppUserModelId('vip.mailpigeon.browser');
+  //
+  // Packaged only. In development there is no shortcut carrying that ID, and
+  // an ID that resolves to nothing makes Windows fall back to a default icon
+  // instead of using the window's own — so the very thing meant to fix the
+  // taskbar icon is what removes it while developing.
+  if (process.platform === 'win32' && app.isPackaged) {
+    app.setAppUserModelId('vip.mailpigeon.browser');
+  }
 
   // Tab commands — thin pass-throughs; TabManager owns all state.
   // Initial value for pollers — focus events only fire on change, so a
@@ -225,6 +279,25 @@ app.whenReady().then(() => {
   );
   ipcMain.handle('bookmarks:remove', (_e, id: string) => bookmarks.remove(id));
 
+  // Per-inbox network exits, and the one-time Mysterium setup behind them.
+  ipcMain.handle('exits:state', () => exits.state());
+  ipcMain.handle('exits:setup', () => exits.setup());
+  ipcMain.handle('exits:refresh', () => exits.refresh());
+  ipcMain.handle('exits:install', () => exits.install());
+  ipcMain.handle('exits:useBinary', (_e, path: string) => exits.useBinary(path));
+  ipcMain.handle('exits:createIdentity', () => exits.createIdentity());
+  ipcMain.handle('exits:importIdentity', (_e, path: string, passphrase: string) =>
+    exits.importIdentity(path, passphrase),
+  );
+  ipcMain.handle('exits:register', () => exits.register());
+  ipcMain.handle('exits:countries', () => exits.countries());
+  ipcMain.handle('exits:enable', (_e, profile: string, country: string) =>
+    exits.enable(profile, country),
+  );
+  ipcMain.handle('exits:disable', (_e, profile: string) => exits.disable(profile));
+  ipcMain.handle('exits:signOut', (_e, wipe: boolean) => exits.signOut(wipe));
+  ipcMain.handle('exits:relink', () => exits.relink());
+
   // Pigeon API — main-process only; the key never reaches a renderer.
   ipcMain.handle('pigeon:hasKey', () => pigeon.hasKey());
   ipcMain.handle('pigeon:saveKey', (_e, key: string) => pigeon.saveKey(key));
@@ -243,6 +316,10 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+// Exit nodes are child processes; without this they outlive the app and keep
+// holding (and paying for) connections nobody is using.
+app.on('before-quit', () => exits.stop());
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

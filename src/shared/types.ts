@@ -149,6 +149,65 @@ export interface ProfileTabs {
   activeTabId: string | null;
 }
 
+/**
+ * off       switched off for this inbox — deliberately, so it stays off
+ * connecting  starting its node, or finding a new peer after a drop
+ * connected   has an exit and can browse
+ * down        the peer dropped; pages hold rather than erroring
+ */
+export type ExitStatus = 'off' | 'connecting' | 'connected' | 'down';
+
+export interface ExitState {
+  profile: string;
+  status: ExitStatus;
+  /** The country asked for, which is not always the one currently in use. */
+  wanted?: string;
+  country?: string;
+  city?: string;
+  isp?: string;
+  ip?: string;
+  detail?: string;
+}
+
+/**
+ * How far the machine is from being able to run exits at all.
+ *
+ * Ordered: each step is blocked until the one before it is done, and the
+ * settings panel walks the user down it.
+ */
+export type MystStage =
+  | 'no-binary'
+  | 'starting'
+  | 'no-identity'
+  | 'unregistered'
+  | 'registering'
+  | 'unfunded'
+  | 'ready';
+
+export interface MystSetup {
+  stage: MystStage;
+  binaryPath: string | null;
+  identity: string | null;
+  /** Where to send MYST. The identity address is NOT this, and does not work. */
+  channelAddress: string | null;
+  balance: number;
+  /** MYST per GiB at current network prices, for showing what a top-up buys. */
+  pricePerGib: number | null;
+  /**
+   * An identity sitting unused on this machine, unlinked but not deleted.
+   * Offered as a one-click way back rather than making someone find the
+   * keystore file again.
+   */
+  relinkable?: string | null;
+  error?: string;
+}
+
+/** A country the network currently has residential exits in. */
+export interface ExitCountry {
+  code: string;
+  count: number;
+}
+
 export interface BrowserState {
   activeProfile: string | null;
   profiles: Record<string, ProfileTabs>;

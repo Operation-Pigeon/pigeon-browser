@@ -6,6 +6,15 @@ import { bookmarks } from './bookmarks';
 import { history } from './history';
 import { mirror } from './mirror';
 import { passwords } from './passwords';
+import { applyEmulation, detachForDevTools, prepareSession } from './identities';
+import { exits } from './exits';
+
+/**
+ * Chromium net errors meaning "the proxy did not answer", as opposed to the
+ * site being unreachable. ERR_PROXY_CONNECTION_FAILED, ERR_TUNNEL_CONNECTION_FAILED,
+ * and the plain connection refused a closed local port gives.
+ */
+const PROXY_ERRORS = new Set([-130, -111, -102]);
 
 /** Chrome geometry — renderer drives rail/panel widths (resizable); TOP_H stays fixed. */
 export const RAIL_EXPANDED_W = 224;
@@ -40,6 +49,8 @@ export class TabManager {
   private mirrorAttached = new Set<string>();
   /** Chrome overlays currently open over the page area, by name. */
   private overlays = new Set<string>();
+  /** Tabs parked waiting for their inbox's exit to return, by webContents id. */
+  private holding = new Set<number>();
   private get contentHidden(): boolean {
     return this.overlays.size > 0;
   }
@@ -156,9 +167,14 @@ export class TabManager {
     });
 
     // Google (and friends) reject logins from an obviously-Electron UA —
-    // and logging into accounts is this browser's whole purpose.
+    // and logging into accounts is this browser's whole purpose. An identity
+    // with its own `ua` overrides this again a few lines down.
     const wc = view.webContents;
     wc.setUserAgent(wc.getUserAgent().replace(/\sElectron\/\S+/, ''));
+    // A proxied session must not announce its real address over UDP; WebRTC
+    // is the classic way an otherwise-clean proxy gives itself away.
+    wc.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+    applyEmulation(wc, profile);
     this.wireKeys(wc);
 
     const info: TabInfo = {
@@ -212,6 +228,17 @@ export class TabManager {
       // A fresh document starts with no role; re-arm it.
       wc.send('mirror:role', mirror.roleFor(profile));
     });
+    // An exit that dropped mid-session takes its proxy port with it, and
+    // every load in that inbox fails at the proxy rather than at the site.
+    // Chromium fails closed here, which is the behaviour we want — it never
+    // silently retries direct and exposes this machine's own address — but
+    // the user just sees a browser error. Hold the page and retry once the
+    // exit is back, so a drop reads as a pause rather than a breakage.
+    wc.on('did-fail-load', (_e, errorCode, _desc, failedUrl, isMainFrame) => {
+      if (!isMainFrame || !PROXY_ERRORS.has(errorCode)) return;
+      if (!exits.waiting(profile)) return;
+      this.holdForExit(wc, profile, failedUrl);
+    });
     wc.on('page-favicon-updated', (_e, favicons) => {
       info.favicon = favicons[0] ?? null;
       this.emit();
@@ -227,7 +254,11 @@ export class TabManager {
     this.emit();
 
     if (url) {
-      void wc.loadURL(url);
+      // Gated on the proxy actually being set. Loading first and configuring
+      // afterwards still renders the page — over the default route, from this
+      // machine's own address, which is the failure this whole layer exists
+      // to prevent and the one that leaves no trace of having happened.
+      void prepareSession(profile).then(() => wc.loadURL(url));
     } else if (!background) {
       // Blank tab: nothing to look at, so put the caret in the address bar
       // (which also offers this inbox's most-visited sites). Must come
@@ -235,6 +266,40 @@ export class TabManager {
       // tab exists, and focusing a disabled input does nothing.
       this.focusAddressBar();
     }
+  }
+
+  /**
+   * Waits for an inbox's exit to come back, then loads the page that failed.
+   *
+   * One hold per tab: a page with subresources can fail many times over, and
+   * without this every failure would start its own retry loop and they would
+   * all fire at once the moment the exit returned.
+   */
+  private holdForExit(wc: WebContents, profile: string, url: string): void {
+    if (this.holding.has(wc.id)) return;
+    this.holding.add(wc.id);
+    this.win.webContents.send('chrome:notice', `${profile}, waiting for its exit`);
+
+    const started = Date.now();
+    const poll = setInterval(() => {
+      if (wc.isDestroyed()) {
+        clearInterval(poll);
+        this.holding.delete(wc.id);
+        return;
+      }
+      // Ten minutes is long enough for the launcher's watcher to restart a
+      // wedged node and find a new peer; past that something needs a human.
+      if (Date.now() - started > 10 * 60_000) {
+        clearInterval(poll);
+        this.holding.delete(wc.id);
+        this.win.webContents.send('chrome:notice', `${profile}, exit did not come back`);
+        return;
+      }
+      if (!exits.usable(profile)) return;
+      clearInterval(poll);
+      this.holding.delete(wc.id);
+      void wc.loadURL(url);
+    }, 3000);
   }
 
   private focusAddressBar(): void {
@@ -426,7 +491,15 @@ export class TabManager {
           return true;
         }
         if (key === 'f12' || (ctrl && input.shift && key === 'i')) {
-          if (activeId) this.tabs.get(activeId)?.view.webContents.toggleDevTools();
+          const target = activeId ? this.tabs.get(activeId)?.view.webContents : undefined;
+          if (target) {
+            // Emulation holds the CDP session, and only one client may. Give
+            // it up rather than have F12 do nothing at all — the overrides
+            // stay applied to the document already loaded, and come back on
+            // the next navigation.
+            detachForDevTools(target);
+            target.toggleDevTools();
+          }
           return true;
         }
         return false;
