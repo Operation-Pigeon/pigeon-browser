@@ -273,7 +273,7 @@ export function MailPanel({ address, width }: { address: string; width: number }
                   </span>
                 </span>
                 <span className="w-full truncate text-xs text-muted-foreground">
-                  {m.subject || '(no subject)'} — {m.snippet}
+                  {m.subject || '(no subject)'}, {m.snippet}
                 </span>
               </button>
               <div className="absolute top-1.5 right-2 hidden items-center gap-0.5 group-hover:flex">

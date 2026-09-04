@@ -69,7 +69,7 @@ export function OtpPopup({
           </button>
           {arrival.confidence !== 'HIGH' && (
             <span className="text-xs text-muted-foreground">
-              Best guess from “{arrival.subject || 'no subject'}” — check the mail if it fails.
+              Best guess from “{arrival.subject || 'no subject'}”, check the mail if it fails.
             </span>
           )}
         </div>

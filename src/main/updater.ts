@@ -11,7 +11,7 @@ export function startUpdater(win: BrowserWindow): void {
   if (!app.isPackaged) return; // dev builds have nothing to update
 
   autoUpdater.on('update-downloaded', (info) => {
-    win.webContents.send('chrome:notice', `Update v${info.version} ready — restart to apply`);
+    win.webContents.send('chrome:notice', `Update v${info.version} ready, restart to apply`);
   });
   autoUpdater.on('error', () => {
     // Offline or GitHub hiccup — silent; the next interval retries.

@@ -66,7 +66,7 @@ export function MirrorControls({
           {state.paused
             ? 'Enter codes in each inbox, then resume.'
             : offTrack > 0
-              ? `${offTrack} off track — switch to one to take over, or resync.`
+              ? `${offTrack} off track, switch to one to take over, or resync.`
               : 'Actions replay in each.'}
         </span>
         <span className="flex items-center gap-1">

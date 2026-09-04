@@ -305,7 +305,7 @@ export function TabStrip({
             <div className="fixed top-[88px] right-14 z-50 w-80 rounded-lg border bg-popover p-1 text-popover-foreground shadow-md">
               {bookmarks.length === 0 ? (
                 <p className="p-3 text-center text-xs text-muted-foreground">
-                  No bookmarks yet — star a page or press Ctrl+D.
+                  No bookmarks yet, star a page or press Ctrl+D.
                 </p>
               ) : (
                 <div className="flex max-h-96 flex-col overflow-y-auto">

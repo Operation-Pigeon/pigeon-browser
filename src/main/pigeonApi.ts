@@ -108,7 +108,7 @@ const messageInbox = new Map<string, string>();
 function inboxOf(messageId: string): string {
   const known = messageInbox.get(messageId);
   if (!known) {
-    throw new Error(`unknown inbox for message ${messageId} — open the inbox first`);
+    throw new Error(`unknown inbox for message ${messageId}, open the inbox first`);
   }
   return known;
 }
