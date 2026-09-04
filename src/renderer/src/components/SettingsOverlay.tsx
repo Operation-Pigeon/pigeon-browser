@@ -20,11 +20,13 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
   const [keyMsg, setKeyMsg] = useState('');
   const [autoSave, setAutoSave] = useState(false);
   const [shareHistory, setShareHistory] = useState(false);
+  const [personaFill, setPersonaFill] = useState(true);
 
   useEffect(() => {
     void window.bridge.settings.get().then((s) => {
       setAutoSave(s.autoSavePasswords);
       setShareHistory(s.shareHistorySuggestions);
+      setPersonaFill(s.personaFill);
     });
   }, []);
 
@@ -117,6 +119,30 @@ export function SettingsOverlay({ onClose }: { onClose: () => void }) {
                     <span className="block text-xs text-muted-foreground">
                       Off: you get a prompt after each login. Saved logins live in the key panel on
                       the right, per inbox.
+                    </span>
+                  </span>
+                </label>
+              </section>
+
+              <Separator />
+
+              <section className="flex flex-col gap-2">
+                <h2 className="text-sm font-medium">Autofill</h2>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={personaFill}
+                    onChange={(e) => {
+                      setPersonaFill(e.target.checked);
+                      void window.bridge.settings.setPersonaFill(e.target.checked);
+                    }}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Allow filling invented details
+                    <span className="block text-xs text-muted-foreground">
+                      Names, dates of birth, country and state, for every inbox. Off blocks it in
+                      the app itself, not just in the panel. Saved passwords are unaffected.
                     </span>
                   </span>
                 </label>

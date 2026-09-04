@@ -52,9 +52,9 @@ export interface Identity {
   timezone?: string;
   viewport?: { width: number; height: number; dpr: number };
   /**
-   * The local Mysterium node backing this exit, written by tools/exits.js.
-   * Present only for exits the launcher manages; a plain commercial proxy
-   * has no node to ask, so the rail shows no switch for it.
+   * Only for proxies configured outside the app: written by tools/exits.js
+   * and read by tools/test-identity.js. Tunnels the app runs itself are
+   * dynamic and never appear in this file.
    */
   apiPort?: number;
   country?: string;
@@ -84,7 +84,7 @@ export function identityFor(profile: string): Identity {
   return all()[profile] ?? {};
 }
 
-export function sessionFor(profile: string): Electron.Session {
+function sessionFor(profile: string): Electron.Session {
   return session.fromPartition(`persist:inbox/${profile}`);
 }
 
@@ -238,14 +238,4 @@ export async function rotate(profile: string): Promise<void> {
   await ses.closeAllConnections();
   await ses.clearAuthCache();
   await ses.clearStorageData();
-}
-
-/** The address this session actually leaves through — measured, not assumed. */
-export async function exitInfo(
-  profile: string,
-): Promise<{ ip: string; country: string; org: string }> {
-  await prepareSession(profile);
-  const response = await sessionFor(profile).fetch('https://ipinfo.io/json');
-  const body = (await response.json()) as { ip?: string; country?: string; org?: string };
-  return { ip: body.ip ?? '', country: body.country ?? '', org: body.org ?? '' };
 }

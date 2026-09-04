@@ -12,6 +12,7 @@ import {
   PlusIcon,
   RotateCwIcon,
   StarIcon,
+  WandIcon,
   XIcon,
 } from 'lucide-react';
 import type { Bookmark, HistoryEntry, TabInfo } from '../../../shared/types';
@@ -44,8 +45,8 @@ export function TabStrip({
   allProfiles: string[];
   tabs: TabInfo[];
   activeTabId: string | null;
-  rightPanel: 'mail' | 'passwords' | 'history' | null;
-  onSelectPanel: (panel: 'mail' | 'passwords' | 'history') => void;
+  rightPanel: 'mail' | 'passwords' | 'history' | 'fill' | null;
+  onSelectPanel: (panel: 'mail' | 'passwords' | 'history' | 'fill') => void;
   /** Suggestions drop over the page area — the native view must hide. */
   onSuggestOpen: (open: boolean) => void;
 }) {
@@ -369,6 +370,14 @@ export function TabStrip({
           title="Saved passwords for this inbox"
         >
           <KeyIcon />
+        </Button>
+        <Button
+          variant={rightPanel === 'fill' ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          onClick={() => onSelectPanel('fill')}
+          title="Fill this page"
+        >
+          <WandIcon />
         </Button>
         <Button
           variant={rightPanel === 'mail' ? 'secondary' : 'ghost'}

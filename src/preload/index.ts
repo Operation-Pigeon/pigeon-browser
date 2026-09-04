@@ -4,8 +4,10 @@ import type {
   BrowserState,
   ExitCountry,
   ExitState,
+  FillResult,
   HistoryEntry,
   MystSetup,
+  Persona,
   MirrorState,
   PendingCredential,
   SavedPassword,
@@ -115,9 +117,38 @@ const api = {
       ipcRenderer.invoke('settings:get') as Promise<{
         autoSavePasswords: boolean;
         shareHistorySuggestions: boolean;
+        personaFill: boolean;
       }>,
     setAutoSave: (value: boolean) => ipcRenderer.invoke('settings:setAutoSave', value),
     setShareHistory: (value: boolean) => ipcRenderer.invoke('settings:setShareHistory', value),
+    setPersonaFill: (value: boolean) => ipcRenderer.invoke('settings:setPersonaFill', value),
+    colors: () => ipcRenderer.invoke('inboxes:colors') as Promise<Record<string, string>>,
+    setColor: (profile: string, color: string | null) =>
+      ipcRenderer.invoke('inboxes:setColor', profile, color) as Promise<void>,
+    collapsed: () => ipcRenderer.invoke('inboxes:collapsed') as Promise<string[]>,
+    prune: (known: string[]) => ipcRenderer.invoke('inboxes:prune', known) as Promise<string[]>,
+    setCollapsed: (color: string, collapsed: boolean) =>
+      ipcRenderer.invoke('inboxes:setCollapsed', color, collapsed) as Promise<void>,
+  },
+  autofill: {
+    /** Fill saved credentials into the page as it is right now. */
+    fillNow: () => ipcRenderer.invoke('autofill:fillNow') as Promise<boolean>,
+    newPassword: () => ipcRenderer.invoke('autofill:newPassword') as Promise<boolean>,
+    fillPersona: (profile: string) =>
+      ipcRenderer.invoke('autofill:fillPersona', profile) as Promise<boolean>,
+    onResult: (cb: (r: FillResult) => void): (() => void) => {
+      const listener = (_e: unknown, r: FillResult) => cb(r);
+      ipcRenderer.on('autofill:result', listener);
+      return () => {
+        ipcRenderer.removeListener('autofill:result', listener);
+      };
+    },
+  },
+  personas: {
+    get: (profile: string) => ipcRenderer.invoke('personas:get', profile) as Promise<Persona>,
+    regenerate: (profile: string) =>
+      ipcRenderer.invoke('personas:regenerate', profile) as Promise<Persona>,
+    save: (persona: Persona) => ipcRenderer.invoke('personas:save', persona) as Promise<Persona>,
   },
   exits: {
     state: () => ipcRenderer.invoke('exits:state') as Promise<Record<string, ExitState>>,
@@ -137,6 +168,10 @@ const api = {
     enable: (profile: string, country: string) =>
       ipcRenderer.invoke('exits:enable', profile, country) as Promise<void>,
     disable: (profile: string) => ipcRenderer.invoke('exits:disable', profile) as Promise<void>,
+    enableMany: (profiles: string[], country: string) =>
+      ipcRenderer.invoke('exits:enableMany', profiles, country) as Promise<void>,
+    disableMany: (profiles: string[]) =>
+      ipcRenderer.invoke('exits:disableMany', profiles) as Promise<void>,
     signOut: (wipe: boolean) => ipcRenderer.invoke('exits:signOut', wipe) as Promise<void>,
     relink: () => ipcRenderer.invoke('exits:relink') as Promise<void>,
     onState: (cb: (s: Record<string, ExitState>) => void): (() => void) => {

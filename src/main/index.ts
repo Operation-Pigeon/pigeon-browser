@@ -8,13 +8,21 @@ import { history } from './history';
 import { mirror } from './mirror';
 import {
   getAutoSavePasswords,
+  getCollapsedGroups,
+  pruneUnknownInboxes,
+  getInboxColors,
+  getPersonaFill,
   getShareHistorySuggestions,
   setAutoSavePasswords,
+  setInboxColor,
+  setGroupCollapsed,
+  setPersonaFill,
   setShareHistorySuggestions,
 } from './settings';
 import { startUpdater } from './updater';
 import { proxyPassword, proxyUsername } from './identities';
 import { exits } from './exits';
+import { personas } from './personas';
 
 /**
  * A packaged asset as a real file on disk.
@@ -230,11 +238,35 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:get', () => ({
     autoSavePasswords: getAutoSavePasswords(),
     shareHistorySuggestions: getShareHistorySuggestions(),
+    personaFill: getPersonaFill(),
   }));
   ipcMain.handle('settings:setAutoSave', (_e, value: boolean) => setAutoSavePasswords(value));
   ipcMain.handle('settings:setShareHistory', (_e, value: boolean) =>
     setShareHistorySuggestions(value),
   );
+  ipcMain.handle('settings:setPersonaFill', (_e, value: boolean) => setPersonaFill(value));
+
+  // Colour labels group the rail. Stored app-wide rather than per inbox
+  // because the grouping is a property of the list, not of one entry.
+  ipcMain.handle('inboxes:colors', () => getInboxColors());
+  ipcMain.handle('inboxes:setColor', (_e, profile: string, color: string | null) =>
+    setInboxColor(profile, color),
+  );
+  ipcMain.handle('inboxes:collapsed', () => getCollapsedGroups());
+  ipcMain.handle('inboxes:setCollapsed', (_e, color: string, collapsed: boolean) =>
+    setGroupCollapsed(color, collapsed),
+  );
+
+  // The app learns an inbox is gone by it no longer being listed, so the
+  // whole list comes in and anything missing from it is forgotten. Tunnels
+  // for dropped inboxes are stopped too: a node left running would keep a
+  // connection open, and keep paying for it, for an inbox nobody can reach.
+  ipcMain.handle('inboxes:prune', async (_e, known: string[]) => {
+    const dropped = pruneUnknownInboxes(known);
+    personas.prune(known);
+    for (const profile of dropped) await exits.disable(profile);
+    return dropped;
+  });
 
   // Multi-inbox control. The leading profile is derived from the SENDER, so
   // a page can't nominate itself as leader and drive other sessions.
@@ -279,6 +311,29 @@ app.whenReady().then(() => {
   );
   ipcMain.handle('bookmarks:remove', (_e, id: string) => bookmarks.remove(id));
 
+  // Fill the page in front of the user, now, rather than at load time.
+  // The reply is relayed straight back to the chrome so the panel can say
+  // what landed instead of guessing.
+  ipcMain.handle('autofill:fillNow', () => tabs.fillActive('credentials'));
+  // Checked here as well as in the panel: the switch exists to stop invented
+  // data reaching a page, and a button that is merely hidden is not that.
+  ipcMain.handle('autofill:fillPersona', (_e, profile: string) =>
+    getPersonaFill() ? tabs.fillActive('persona', personas.ensure(profile)) : false,
+  );
+  ipcMain.on('autofill:result', (_e, result) => {
+    if (!win.isDestroyed()) win.webContents.send('autofill:result', result);
+  });
+
+  // A signup form asks for a password the inbox does not have yet. Minted
+  // and saved in main, so the renderer never handles the secret: it asks
+  // for one and the page receives it.
+  ipcMain.handle('autofill:newPassword', () => tabs.fillActive('newPassword'));
+
+  // Invented people, one per inbox, for signup forms.
+  ipcMain.handle('personas:get', (_e, profile: string) => personas.ensure(profile));
+  ipcMain.handle('personas:regenerate', (_e, profile: string) => personas.regenerate(profile));
+  ipcMain.handle('personas:save', (_e, persona) => personas.save(persona));
+
   // Per-inbox network exits, and the one-time Mysterium setup behind them.
   ipcMain.handle('exits:state', () => exits.state());
   ipcMain.handle('exits:setup', () => exits.setup());
@@ -295,6 +350,10 @@ app.whenReady().then(() => {
     exits.enable(profile, country),
   );
   ipcMain.handle('exits:disable', (_e, profile: string) => exits.disable(profile));
+  ipcMain.handle('exits:enableMany', (_e, profiles: string[], country: string) =>
+    exits.enableMany(profiles, country),
+  );
+  ipcMain.handle('exits:disableMany', (_e, profiles: string[]) => exits.disableMany(profiles));
   ipcMain.handle('exits:signOut', (_e, wipe: boolean) => exits.signOut(wipe));
   ipcMain.handle('exits:relink', () => exits.relink());
 

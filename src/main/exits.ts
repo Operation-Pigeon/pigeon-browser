@@ -854,6 +854,23 @@ export const exits = {
   },
 
   /**
+   * Turns a whole group on, in parallel.
+   *
+   * Sequentially would mean the last inbox in a group of ten waits through
+   * nine node startups and nine P2P handshakes before its own begins, which
+   * is minutes. Each node holds its own busy flag, so nothing here needs the
+   * others to finish.
+   */
+  async enableMany(profiles: string[], country: string): Promise<void> {
+    await Promise.all(profiles.map((profile) => this.enable(profile, country)));
+  },
+
+  /** Turns a whole group off. */
+  async disableMany(profiles: string[]): Promise<void> {
+    await Promise.all(profiles.map((profile) => this.disable(profile)));
+  },
+
+  /**
    * Switching an inbox off returns it to browsing directly.
    *
    * Deliberate and unintentional are treated differently on purpose. A drop
