@@ -36,7 +36,11 @@
       "owner": "Operation-Pigeon",
       "repo": "pigeon-browser",
       "releaseType": "release"
-    }
+    },
+    "asarUnpack": [
+      "build/icon.ico",
+      "build/icon.png"
+    ]
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
