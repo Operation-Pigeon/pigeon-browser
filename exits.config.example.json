@@ -1,0 +1,64 @@
+{
+  "_comment": [
+    "Copy to exits.config.json and edit. Consumed by tools/exits.js.",
+    "",
+    "bin: the myst.exe from github.com/mysteriumnetwork/node/releases.",
+    "     Windows Defender flags it (Trojan:Win32/Suschil!rfn, a heuristic",
+    "     detection), so the folder holding it needs a Defender exclusion or",
+    "     the binary will be quarantined on extraction.",
+    "",
+    "identity + keystore: one payment identity shared by every node, so the",
+    "     MYST top-up happens once. keystore is the folder holding its",
+    "     UTC--... file; each node gets a copy.",
+    "",
+    "Ports are assigned by position: node i listens on tequilapi 4060+i and",
+    "     exposes its HTTP proxy on 1081+i. Reordering this list reshuffles",
+    "     them, so append rather than insert.",
+    "",
+    "Keep timezone/locale consistent with the country: a London exit",
+    "     reporting America/New_York is a bigger tell than no proxy at all."
+  ],
+
+  "bin": "C:\\Users\\you\\Documents\\PigeonBrowser\\bin\\myst.exe",
+  "keystore": "C:\\Users\\you\\Documents\\PigeonBrowser\\myst-identity",
+  "identity": "0x0000000000000000000000000000000000000000",
+  "passphrase": "replace-me",
+  "identities": "identities.json",
+
+  "exits": [
+    {
+      "inbox": "coop@mailpigeon.vip",
+      "country": "GB",
+      "timezone": "Europe/London",
+      "locale": "en-GB",
+      "acceptLanguage": "en-GB,en;q=0.9",
+      "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      "uaMetadata": {
+        "platform": "Windows",
+        "platformVersion": "15.0.0",
+        "architecture": "x86",
+        "model": "",
+        "mobile": false,
+        "brands": [
+          { "brand": "Chromium", "version": "131" },
+          { "brand": "Google Chrome", "version": "131" }
+        ]
+      },
+      "viewport": { "width": 1920, "height": 1080, "dpr": 1 }
+    },
+    {
+      "inbox": "wren@mailpigeon.vip",
+      "country": "DE",
+      "timezone": "Europe/Berlin",
+      "locale": "de-DE",
+      "acceptLanguage": "de-DE,de;q=0.9,en;q=0.8"
+    },
+    {
+      "inbox": "finch@mailpigeon.vip",
+      "country": "US",
+      "timezone": "America/New_York",
+      "locale": "en-US",
+      "acceptLanguage": "en-US,en;q=0.9"
+    }
+  ]
+}
