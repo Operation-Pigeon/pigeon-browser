@@ -1,11 +1,13 @@
 import { BrowserWindow, WebContentsView, type Input, type WebContents } from 'electron';
-import { randomUUID } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { join } from 'path';
 import type { BrowserState, TabInfo } from '../shared/types';
 import { bookmarks } from './bookmarks';
 import { history } from './history';
 import { mirror } from './mirror';
 import { passwords } from './passwords';
+import { personas } from './personas';
+import { getPersonaFill } from './settings';
 import { applyEmulation, detachForDevTools, prepareSession } from './identities';
 import { exits } from './exits';
 
@@ -17,9 +19,9 @@ import { exits } from './exits';
 const PROXY_ERRORS = new Set([-130, -111, -102]);
 
 /** Chrome geometry — renderer drives rail/panel widths (resizable); TOP_H stays fixed. */
-export const RAIL_EXPANDED_W = 224;
+const RAIL_EXPANDED_W = 224;
 export const TOP_H = 84;
-export const PANEL_DEFAULT_W = 384;
+const PANEL_DEFAULT_W = 384;
 
 interface Tab {
   view: WebContentsView;
@@ -225,6 +227,7 @@ export class TabManager {
     });
     wc.on('did-finish-load', () => {
       this.pushAutofill(wc, profile);
+      this.pushPersona(wc, profile);
       // A fresh document starts with no role; re-arm it.
       wc.send('mirror:role', mirror.roleFor(profile));
     });
@@ -416,6 +419,68 @@ export class TabManager {
       if (tab.view.webContents.id === wc.id) return tab.info.profile;
     }
     return null;
+  }
+
+  /**
+   * Fills the page the user is looking at, on request.
+   *
+   * Credentials come from the tab's own (profile, origin) as always, never
+   * from the renderer: the panel asks for a fill, it does not get to say what
+   * to type. The reply comes back over 'autofill:result' from the page, so
+   * the panel can report what actually landed.
+   */
+  fillActive(kind: 'credentials' | 'persona' | 'newPassword', persona?: unknown): boolean {
+    const profile = this.activeProfile;
+    const id = profile ? this.activeByProfile.get(profile) : undefined;
+    const wc = id ? this.tabs.get(id)?.view.webContents : undefined;
+    if (!wc || !profile) return false;
+
+    if (kind === 'persona') {
+      wc.send('autofill:persona', persona);
+      return true;
+    }
+
+    let origin: string;
+    try {
+      const url = new URL(wc.getURL());
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+      origin = url.origin;
+    } catch {
+      return false;
+    }
+    if (kind === 'newPassword') {
+      // Minted here rather than in the renderer: the panel asks for a
+      // password, it never sees or supplies one. Saved before it is typed, so
+      // a signup that succeeds is not followed by a login nobody can make.
+      const fresh = randomBytes(18).toString('base64url');
+      passwords.upsert(profile, origin, profile, fresh);
+      wc.send('autofill:fill', { email: profile, username: profile, password: fresh });
+      this.win.webContents.send(
+        'chrome:notice',
+        `Password saved · ${new URL(origin).host} · ${profile}`,
+      );
+      return true;
+    }
+
+    const cred = passwords.get(profile, origin);
+    wc.send('autofill:fill', {
+      email: profile,
+      ...(cred ? { username: cred.username, password: cred.password } : {}),
+    });
+    return true;
+  }
+
+  /**
+   * Invented details on page load, the same way credentials arrive.
+   *
+   * Sent gently: the page agent fills what is empty and leaves anything
+   * already carrying a value alone, so a form part-way through being typed
+   * into is not rewritten underneath the user. The panel's button is the
+   * forceful version.
+   */
+  private pushPersona(wc: WebContents, profile: string): void {
+    if (!getPersonaFill()) return;
+    wc.send('autofill:persona', { ...personas.ensure(profile), gentle: true });
   }
 
   private pushAutofill(wc: WebContents, profile: string): void {

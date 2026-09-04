@@ -202,6 +202,38 @@ export interface MystSetup {
   error?: string;
 }
 
+/**
+ * An invented person for one inbox, for signup forms that want a name and a
+ * date of birth. Names and dates only, and never anything that would pass for
+ * a real document.
+ */
+export interface Persona {
+  profile: string;
+  firstName: string;
+  lastName: string;
+  birthDay: number;
+  birthMonth: number;
+  birthYear: number;
+  /** ISO code, because country selects key on it far more often than on the name. */
+  country: string;
+  /** Full name, not a code: state dropdowns often use opaque numeric ids. */
+  state: string;
+  updatedAt: string;
+}
+
+/**
+ * What a fill actually managed to do on the page in front of you.
+ *
+ * Reported per field rather than as one boolean because "nothing happened" and
+ * "filled the email but this form has no password box" are different answers,
+ * and only one of them is a problem.
+ */
+export interface FillResult {
+  filled: string[];
+  /** Fields the page asked for that we had nothing to put in. */
+  missing: string[];
+}
+
 /** A country the network currently has residential exits in. */
 export interface ExitCountry {
   code: string;
