@@ -45,7 +45,7 @@
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@fontsource-variable/geist": "^5.3.0",
-    "@operation-pigeon/sdk": "file:../../../AppData/Local/Temp/claude/C--Users-Rambe-Documents-GitHub-leyline/32781833-e10c-4b02-9a7c-e344ac78c237/scratchpad/operation-pigeon-sdk-0.0.0-dev.tgz",
+    "@operation-pigeon/sdk": "^0.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-updater": "^6.8.9",
