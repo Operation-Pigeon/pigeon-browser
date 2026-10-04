@@ -1,12 +1,12 @@
 import {
-  Configuration,
-  DefaultApi,
+  AccessDeniedException,
   Direction,
   MessageState,
-  OtpConfidence,
+  PigeonClient,
   type InboxData,
   type MessageData,
-} from '@operation-pigeon/client';
+  type OtpConfidence,
+} from '@operation-pigeon/sdk';
 
 import { getApiKey, setApiKey } from './settings';
 import { KEY_REJECTED, type Inbox, type MailDetail, type MailSummary, type OtpHit } from '../shared/types';
@@ -43,31 +43,30 @@ async function workspace(): Promise<string> {
   return workspaceId;
 }
 
-function api(key = getApiKey()): DefaultApi {
+function api(key = getApiKey()): PigeonClient {
   if (!key) throw new Error('no API key configured');
-  // The scheme changed with v1: `Authorization: Bearer`, not `x-api-key`.
-  return new DefaultApi(
-    new Configuration({ basePath: BASE, headers: { Authorization: `Bearer ${key}` } }),
-  );
+  // Sent as `Authorization: Bearer`.
+  return new PigeonClient({ endpoint: BASE, token: key });
 }
 
 /**
  * Turns a refused key into something the app can act on.
  *
- * The authorizer answers `403` for a key it does not recognise, and every key
- * minted against v0 is such a key — so the first launch after this migration
- * fails this way for everybody. Swallowed, that is an empty rail and no
- * explanation. Named, the renderer can ask for a new key instead.
+ * A key the API does not recognise — revoked, mistyped, or minted against v0
+ * — is an `AccessDeniedException` with reason `unauthenticated`. Swallowed,
+ * that is an empty rail and no explanation. Named, the renderer can ask for a
+ * new key instead.
  *
- * Only 401 and 403. A timeout or a 500 is worth retrying and must not throw
- * away a key that is perfectly good.
+ * Only that reason. A key that is valid but lacks a grant is still a good
+ * key, and a timeout or a 500 is worth retrying; neither may throw it away.
  */
 async function run<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (error) {
-    const status = (error as { response?: { status?: number } }).response?.status;
-    if (status === 401 || status === 403) throw new Error(KEY_REJECTED);
+    if (error instanceof AccessDeniedException && error.reason === 'unauthenticated') {
+      throw new Error(KEY_REJECTED);
+    }
     throw error;
   }
 }
@@ -133,7 +132,7 @@ function summary(message: MessageData): MailSummary {
   return {
     id: message.id,
     threadId: message.threadId,
-    direction: message.direction === Direction.Outbound ? 'OUTBOUND' : 'INBOUND',
+    direction: message.direction === Direction.OUTBOUND ? 'OUTBOUND' : 'INBOUND',
     from: message.from.map((who) => ({ email: who.email, name: who.name })),
     subject: message.subject,
     receivedAt: message.receivedAt.toISOString(),
@@ -169,7 +168,7 @@ export const pigeon = {
     // `/me` describes the principal now and names no workspace — a person can
     // belong to several. A key belongs to exactly one, so this asks which,
     // and the answer is the workspace every other call is addressed under.
-    const listed = await run(() => api().listMyWorkspaces({ limit: 1 }));
+    const listed = await run(() => api().listMyWorkspaces({ maxResults: 1 }));
     const mine = listed.data[0]?.workspace;
 
     if (!mine) {
@@ -191,7 +190,7 @@ export const pigeon = {
 
   async inboxes(): Promise<{ inboxes: Inbox[] }> {
     const workspaceId = await workspace();
-    const listed = await run(() => api().listInboxes({ workspaceId, limit: 100 }));
+    const listed = await run(() => api().listInboxes({ workspaceId, maxResults: 100 }));
 
     const inboxes = listed.data.map((inbox: InboxData) => {
       ids.set(inbox.address, inbox.id);
@@ -227,7 +226,7 @@ export const pigeon = {
     const inbox = await inboxId(address);
     const workspaceId = await workspace();
     const listed = await run(() =>
-      api().listMessages({ workspaceId, inboxId: inbox, limit: 25 }),
+      api().listMessages({ workspaceId, inboxId: inbox, maxResults: 25 }),
     );
 
     for (const message of listed.data) messageInbox.set(message.id, inbox);
@@ -255,7 +254,7 @@ export const pigeon = {
         workspaceId,
         inboxId: inbox,
         messageId: id,
-        updateMessageRequestContent: { read: true },
+        read: true,
       })
       .catch(() => {});
 
@@ -263,7 +262,7 @@ export const pigeon = {
       id: message.id,
       inbox: message.inboxId,
       threadId: message.threadId,
-      direction: message.direction === Direction.Outbound ? 'OUTBOUND' : 'INBOUND',
+      direction: message.direction === Direction.OUTBOUND ? 'OUTBOUND' : 'INBOUND',
       from: message.from.map((who) => ({ email: who.email, name: who.name })),
       to: message.to.map((who) => ({ email: who.email, name: who.name })),
       cc: message.cc.map((who) => ({ email: who.email, name: who.name })),
@@ -298,7 +297,7 @@ export const pigeon = {
       workspaceId: await workspace(),
       inboxId: inboxOf(id),
       messageId: id,
-      updateMessageRequestContent: { read: true },
+      read: true,
     });
   },
 
@@ -307,7 +306,7 @@ export const pigeon = {
       workspaceId: await workspace(),
       inboxId: inboxOf(id),
       messageId: id,
-      updateMessageRequestContent: { read: false },
+      read: false,
     });
   },
 
@@ -324,7 +323,7 @@ export const pigeon = {
       workspaceId: await workspace(),
       inboxId: inboxOf(id),
       messageId: id,
-      updateMessageRequestContent: { state: MessageState.Trashed },
+      state: MessageState.TRASHED,
     });
   },
 };
